@@ -1,0 +1,1 @@
+package zw.ac.uz.dpdms.dashboard; import org.springframework.boot.*; import org.springframework.boot.autoconfigure.*; @SpringBootApplication public class DashboardApplication {public static void main(String[] a){SpringApplication.run(DashboardApplication.class,a);}}

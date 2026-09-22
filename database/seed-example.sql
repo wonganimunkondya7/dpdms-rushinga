@@ -1,0 +1,2 @@
+USE dpdms_flood;
+INSERT INTO incidents (ward,district,province,occurred_at,reporter,severity,status,latitude,longitude,indicators_json,created_at,updated_at) VALUES ('Rushinga Ward 1','Rushinga','Mashonaland Central','2026-09-20 08:00:00','flood.recorder.ward1','HIGH','APPROVED',-16.784,32.305,JSON_OBJECT('peakWaterLevelMetres',4.2,'riverBasin','Mazowe','householdsDisplaced',34,'areaFloodedHectares',18.5,'inundationDurationDays',3),NOW(),NOW());

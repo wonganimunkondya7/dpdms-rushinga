@@ -1,0 +1,1 @@
+package zw.ac.uz.dpdms.auth; import org.springframework.boot.*; import org.springframework.boot.autoconfigure.*; @SpringBootApplication public class AuthApplication {public static void main(String[] a){SpringApplication.run(AuthApplication.class,a);}}

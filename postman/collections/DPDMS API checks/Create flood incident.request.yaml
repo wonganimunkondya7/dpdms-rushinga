@@ -1,0 +1,14 @@
+$kind: http-request
+url: "{{gateway}}/flood/api/incidents"
+method: POST
+headers:
+  Authorization: Bearer {{token}}
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "ward": "Rushinga Ward 1", "district": "Rushinga", "province": "Mashonaland Central", "occurredAt": "2026-09-20T08:00:00Z", "reporter": "flood.recorder.ward1", "severity": "HIGH", "latitude": -16.784, "longitude": 32.305,
+      "indicators": {"peakWaterLevelMetres":4.2,"riverBasin":"Mazowe","householdsDisplaced":34,"areaFloodedHectares":18.5,"inundationDurationDays":3}
+    }
+order: 1000

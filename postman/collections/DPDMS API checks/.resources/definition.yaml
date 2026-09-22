@@ -1,0 +1,5 @@
+$kind: collection
+description: ""
+variables:
+  gateway: http://localhost:8080
+  token: PASTE_SIGNED_JWT

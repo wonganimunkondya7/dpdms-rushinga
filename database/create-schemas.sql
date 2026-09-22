@@ -5,4 +5,5 @@ CREATE DATABASE IF NOT EXISTS dpdms_fire;
 CREATE DATABASE IF NOT EXISTS dpdms_zoonotic;
 CREATE DATABASE IF NOT EXISTS dpdms_mining;
 CREATE DATABASE IF NOT EXISTS dpdms_auth;
+CREATE DATABASE IF NOT EXISTS dpdms_alert;
 -- Each service creates only its own tables from its schema.sql at startup.

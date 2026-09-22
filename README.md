@@ -19,6 +19,8 @@ Browser -> dashboard-service (8090) / API Gateway (8080) -> Eureka (8761)
 
 Every hazard service is a separately packaged Spring Boot application. `hazard-core` deliberately contains only shared source code; it is not deployable and does not share a database. This preserves independent schemas while enforcing the same metadata and security rules everywhere.
 
+`alert-service` is independently deployable on port 8087. Its `POST /api/alerts` endpoint persists every queued alert and sends it on a background thread so incident capture does not wait. In this classroom build the delivery outcome is recorded as `SIMULATED_DELIVERED`; production adapters must use `EMAIL_*` and `WHATSAPP_*` environment variables rather than committed credentials.
+
 ## Required local software
 
 | Tool | Status on this computer | Action |
@@ -72,6 +74,7 @@ mvn -pl zoonotic-disease-service spring-boot:run
 mvn -pl mining-accident-service spring-boot:run
 mvn -pl api-gateway spring-boot:run
 mvn -pl dashboard-service spring-boot:run
+mvn -pl alert-service spring-boot:run
 ```
 
 Open `http://localhost:8090` for the dashboard, `http://localhost:8761` for Eureka and each service's `/swagger-ui/index.html` endpoint for its OpenAPI UI.
@@ -79,6 +82,18 @@ Open `http://localhost:8090` for the dashboard, `http://localhost:8761` for Eure
 ## Security and workflow
 
 JWTs need `sub`, `role`, `hazard`, and, for recorders, `ward` claims. Each service independently verifies role and matching hazard claim before executing the endpoint; changing the gateway URL or UI does not bypass it.
+
+### Demonstration accounts
+
+All accounts below use the temporary password `ChangeMe123!` for local marking only. Change or remove them before deployment.
+
+| Username | Role | Scope |
+| --- | --- | --- |
+| `national@dpdms.local` | NATIONAL | approved records across all hazards; read only |
+| `flood.recorder.ward1` | RECORDER | FLOOD, Rushinga Ward 1 |
+| `flood.supervisor` | SUPERVISOR | FLOOD approval workflow |
+| `drought.recorder.ward1` | RECORDER | DROUGHT, Rushinga Ward 1 |
+| `drought.supervisor` | SUPERVISOR | DROUGHT approval workflow |
 
 - `RECORDER`: can create and edit only their own ward's records for exactly their assigned hazard. New records are `PENDING`.
 - `SUPERVISOR`: can view and transition only their assigned hazard's records to `APPROVED`, `REJECTED`, or `CORRECTIONS_REQUESTED`.
@@ -105,7 +120,7 @@ This clean foundation implements the five independently deployable CRUD/approval
 
 1. **auth-service** - MySQL users, BCrypt passwords, login and signed JWT issuing.
 2. **report-service** - approved-only filtered CSV/XLSX/PDF/DOCX downloads.
-3. **alert-service** - RabbitMQ/Kafka queue consumer, email/WhatsApp adapters using environment variables, and persistent delivery log.
-4. Automated unit and integration tests, Docker Compose/HTTPS deployment configuration, and a checked-in architecture image for the presentation.
+3. **alert-service production adapters** - RabbitMQ/Kafka queue consumer plus real email/WhatsApp provider adapters using environment variables. The included service demonstrates non-blocking alert logging but does not send real messages.
+4. Add end-to-end API tests, Docker Compose/HTTPS deployment configuration, and a checked-in architecture image for the presentation. See `docs/architecture.md` for the diagram and marker demonstration sequence.
 
 Never commit `.env`, database passwords, JWT secrets, email keys or WhatsApp tokens.

@@ -1,1 +1,87 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DPDMS Dashboard</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><style>body{margin:0;font:16px system-ui;background:#f5f7f8;color:#152a34}header{padding:20px 6%;background:#075b4c;color:white}main{padding:24px 6%;display:grid;gap:20px}.cards{display:flex;gap:12px;flex-wrap:wrap}.card,form{background:white;padding:16px;border-radius:8px;box-shadow:0 1px 4px #bbb;min-width:145px}input,button{padding:8px;margin:3px}#map{height:420px;background:#ddd}.note{font-size:.9rem;color:#4a5d63}</style></head><body><header><h1>Rushinga Disaster Monitoring</h1><p>Approved incidents only - national read-only view</p></header><main><form id="login"><b>National login</b><input id="username" value="national@dpdms.local"><input id="password" type="password" placeholder="Password"><button>Sign in</button><span id="message"></span></form><section class="cards" id="cards"></section><section><h2>Live incident map</h2><div id="map"></div><p class="note">Only approved incidents are shown.</p></section></main><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>const m=L.map('map').setView([-16.78,32.31],8);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(m);document.querySelector('#login').onsubmit=async e=>{e.preventDefault();let r=await fetch('http://localhost:8080/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:username.value,password:password.value})});if(!r.ok){message.textContent='Login failed';return}localStorage.dpdmsToken=(await r.json()).token;location.reload()};const token=localStorage.dpdmsToken;const hazards=['flood','drought','fire','zoonotic','mining'];Promise.all(hazards.map(h=>fetch(`http://localhost:8080/${h}/api/incidents`,{headers:{Authorization:`Bearer ${token||''}`}}).then(r=>r.ok?r.json():[]).then(x=>({h,x})))).then(all=>{cards.innerHTML=all.map(({h,x})=>`<div class="card"><b>${h.toUpperCase()}</b><br>${x.length} approved</div>`).join('');all.flatMap(a=>a.x.map(x=>({...x,h:a.h}))).forEach(x=>L.marker([x.latitude,x.longitude]).addTo(m).bindPopup(`<b>${x.h}</b><br>${x.ward}<br>${x.severity}`));});</script></body></html>
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DPDMS Dashboard</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><style>
+body{margin:0;font:15px system-ui;background:#f4f7f6;color:#16302b}header{padding:18px 6%;background:#075b4c;color:#fff}main{max-width:1200px;margin:auto;padding:22px;display:grid;gap:18px}.panel,.card{background:#fff;padding:16px;border-radius:9px;box-shadow:0 1px 4px #cad5d2}.hidden{display:none}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}.cards{display:flex;flex-wrap:wrap;gap:10px}.card{min-width:140px}input,select,button{font:inherit;padding:8px;margin:3px 0;border:1px solid #9cadab;border-radius:5px}button{background:#08725f;color:#fff;cursor:pointer;border:0}button.secondary{background:#425a55}label{display:grid;gap:3px;font-weight:600}table{width:100%;border-collapse:collapse;margin-top:10px}th,td{padding:8px;text-align:left;border-bottom:1px solid #dce5e2}#map{height:360px}.message{font-weight:600}.danger{color:#a31d1d}.ok{color:#076640}.toolbar{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
+</style></head><body><header><h1>Rushinga Disaster Monitoring</h1><div id="identity">Sign in to manage incidents</div></header><main>
+<section class="panel" id="loginPanel"><h2>Sign in</h2><form id="login" class="toolbar"><label>Username<input id="username" value="national@dpdms.local" required></label><label>Password<input id="password" type="password" required></label><button>Sign in</button></form><span id="loginMessage" class="message"></span></section>
+<section id="app" class="hidden"><div class="panel toolbar"><label>Hazard<select id="hazard"><option value="flood">Flood</option><option value="drought">Drought</option><option value="fire">Fire</option><option value="zoonotic">Zoonotic disease</option><option value="mining">Mining accident</option></select></label><button id="refresh">Refresh incidents</button><button id="logout" class="secondary">Sign out</button><span id="message" class="message"></span></div>
+<section id="createPanel" class="panel hidden"><h2>Record an incident</h2><form id="incidentForm" class="grid"></form><button form="incidentForm">Submit for approval</button></section>
+<section id="summaryPanel" class="panel"><h2>Approved incident overview</h2><div id="summaryCards" class="cards"></div><h3>Approved incidents by month</h3><div id="trendBars" class="grid"></div><h3>Recent approved incidents</h3><div style="overflow:auto"><table><thead><tr><th>Hazard</th><th>Ward</th><th>Date</th><th>Severity</th></tr></thead><tbody id="recentRows"></tbody></table></div></section>
+<section class="panel"><h2>Incidents</h2><div id="cards" class="cards"></div><div style="overflow:auto"><table><thead><tr><th>ID</th><th>Ward</th><th>Occurred</th><th>Severity</th><th>Status</th><th>Action</th></tr></thead><tbody id="rows"></tbody></table></div></section>
+<section id="reportsPanel" class="panel"><h2>Incident reports</h2><div class="toolbar"><label>Ward filter<input id="reportWard"></label><label>District filter<input id="reportDistrict"></label><label>Severity filter<select id="reportSeverity"><option value="">All</option><option>LOW</option><option>MEDIUM</option><option>HIGH</option><option>CRITICAL</option></select></label><label>From date<input id="reportFromDate" type="date"></label><label>To date<input id="reportToDate" type="date"></label><label>Approval status<select id="reportStatus"><option>APPROVED</option><option>PENDING</option><option>REJECTED</option><option>CORRECTIONS_REQUESTED</option></select></label><button data-format="csv">CSV</button><button data-format="xlsx">Excel</button><button data-format="docx">Word</button><button data-format="pdf">PDF</button></div><p class="note">Pending and other non-approved records are available only to users authorized by the selected hazard service.</p></section>
+<section id="mapPanel" class="panel"><h2>Approved incident map</h2><div id="map"></div></section></section></main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>
+const gateway='http://localhost:8080',hazards=['flood','drought','fire','zoonotic','mining'];let token=localStorage.dpdmsToken,claims={},map,markers=[];
+const required={flood:['peakWaterLevelMetres','riverBasin','householdsDisplaced','areaFloodedHectares','inundationDurationDays'],drought:['rainfallDeficitMm','consecutiveDryDays','cropFailurePercentage','peopleWaterShortage','livestockMortalityCount'],fire:['areaBurnedHectares','suspectedCause','casualties','structuresDestroyed','fireStatus'],zoonotic:['pathogenName','animalSpeciesAffected','confirmedHumanCases','confirmedAnimalCases','classification'],mining:['mineNameAndType','accidentType','trappedOrInjuredMiners','fatalities','rescueOperationsOngoing']};
+function decode(t){try{return JSON.parse(atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')))}catch{return {}}} function auth(){return {Authorization:'Bearer '+token}} function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))} function notice(text,error=false){message.textContent=text;message.className='message '+(error?'danger':'ok')}
+function input(label,name,type='text',value=''){return `<label>${esc(label)}<input name="${esc(name)}" type="${esc(type)}" value="${esc(value)}" required></label>`} function selectedHazard(){return hazard.value}
+function indicatorInput(key){
+  const name='indicator_'+key,label=key==='mineNameAndType'?'Mine name and type (include formal or artisanal)':key.replace(/([A-Z])/g,' $1');
+  const options={suspectedCause:['natural','accidental','deliberate'],fireStatus:['active','contained'],classification:['cluster','outbreak'],accidentType:['collapse','gas explosion','flooding','fall of ground'],rescueOperationsOngoing:['true','false']};
+  if(options[key])return '<label>'+esc(label)+'<select name="'+esc(name)+'" required>'+options[key].map(v=>'<option value="'+esc(v)+'">'+esc(v==='true'?'Yes':v==='false'?'No':v)+'</option>').join('')+'</select></label>';
+  const counts=['householdsDisplaced','inundationDurationDays','consecutiveDryDays','peopleWaterShortage','livestockMortalityCount','casualties','structuresDestroyed','confirmedHumanCases','confirmedAnimalCases','trappedOrInjuredMiners','fatalities'];
+  const numeric=['peakWaterLevelMetres','householdsDisplaced','areaFloodedHectares','inundationDurationDays','rainfallDeficitMm','consecutiveDryDays','cropFailurePercentage','peopleWaterShortage','livestockMortalityCount','areaBurnedHectares','casualties','structuresDestroyed','confirmedHumanCases','confirmedAnimalCases','trappedOrInjuredMiners','fatalities'];
+  if(numeric.includes(key))return '<label>'+esc(label)+'<input name="'+esc(name)+'" type="number" min="0" step="'+(counts.includes(key)?'1':'any')+'" '+(key==='cropFailurePercentage'?'max="100"':'')+' required></label>';
+  return input(label,name)
+}
+function buildForm(){const h=selectedHazard(),base=input('Ward','ward','text',claims.ward||'Rushinga Ward 1')+input('District','district','text','Rushinga')+input('Province','province','text','Mashonaland Central')+input('Occurred at','occurredAt','datetime-local')+'<label>Severity<select name="severity" required><option>LOW</option><option>MEDIUM</option><option>HIGH</option><option>CRITICAL</option></select></label>'+input('Latitude','latitude','number','-16.784')+input('Longitude','longitude','number','32.305');incidentForm.innerHTML=base+required[h].map(indicatorInput).join('')}
+function initialise(){claims=decode(token);identity.textContent=`Signed in as ${claims.sub||'user'} (${claims.role||'unknown'})`;loginPanel.classList.add('hidden');app.classList.remove('hidden');let allHazards=claims.role==='NATIONAL',allowed=allHazards||hazard.value.toUpperCase()===claims.hazard;hazard.disabled=!allHazards;if(!allowed&&claims.hazard){hazard.value=claims.hazard.toLowerCase()} createPanel.classList.toggle('hidden',claims.role!=='RECORDER');mapPanel.classList.toggle('hidden',claims.role!=='NATIONAL');buildForm();load()}
+async function load(){
+  notice('Loading…');
+  const h=selectedHazard(),r=await fetch(`${gateway}/${h}/api/incidents`,{headers:auth()});
+  if(!r.ok){notice('Could not load incidents ('+r.status+')',true);return}
+  const data=await r.json();
+  cards.innerHTML=`<div class="card"><b>${esc(h.toUpperCase())}</b><br>${data.length} visible records</div>`;
+  rows.innerHTML='';
+  data.forEach(x=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${esc(x.id)}</td><td>${esc(x.ward)}</td><td>${esc(new Date(x.occurredAt).toLocaleString())}</td><td>${esc(x.severity)}</td><td>${esc(x.status)}</td><td></td>`;
+    if(claims.role==='SUPERVISOR'&&x.status==='PENDING'){
+      ['APPROVED','REJECTED','CORRECTIONS_REQUESTED'].forEach(status=>{
+        const b=document.createElement('button');b.textContent=status.replaceAll('_',' ');
+        b.onclick=()=>transition(h,x.id,status);tr.lastChild.append(b)
+      })
+    }
+    rows.append(tr)
+  });
+  const allHazards=claims.role==='NATIONAL';
+  await loadSummary(allHazards?hazards:[h]);notice('Ready')
+}
+async function loadSummary(scope){
+  const results=await Promise.all(scope.map(async h=>{
+    const r=await fetch(`${gateway}/${h}/api/incidents`,{headers:auth()});
+    return r.ok?(await r.json()).filter(x=>x.status==='APPROVED').map(x=>({...x,hazardName:h})):[]
+  }));
+  const approved=results.flat(),severityCounts={},hazardCounts={};
+  for(const x of approved){severityCounts[x.severity]=(severityCounts[x.severity]||0)+1;hazardCounts[x.hazardName]=(hazardCounts[x.hazardName]||0)+1}
+  summaryCards.innerHTML=`<div class="card"><b>Approved total</b><br>${approved.length}</div>`+
+    Object.entries(hazardCounts).map(([k,v])=>`<div class="card"><b>${esc(k.toUpperCase())}</b><br>${v} incidents</div>`).join('')+
+    Object.entries(severityCounts).map(([k,v])=>`<div class="card"><b>${esc(k)}</b><br>${v} incidents</div>`).join('')+
+    `<div class="card"><b>Approved status</b><br>${approved.length}</div>`;
+  const now=new Date(),months=[];
+  for(let i=5;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1),key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;months.push({key,label:d.toLocaleString(undefined,{month:'short',year:'2-digit'}),count:0})}
+  approved.forEach(x=>{const d=new Date(x.occurredAt),key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`,m=months.find(entry=>entry.key===key);if(m)m.count++});
+  const max=Math.max(1,...months.map(m=>m.count));
+  trendBars.innerHTML=months.map(m=>`<div class="card"><b>${esc(m.label)}</b><br><div style="height:10px;background:#08725f;width:${Math.max(2,100*m.count/max)}%;margin:8px 0"></div>${m.count} incidents</div>`).join('');
+  recentRows.innerHTML='';
+  approved.sort((a,b)=>new Date(b.occurredAt)-new Date(a.occurredAt)).slice(0,8).forEach(x=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${esc(x.hazardName.toUpperCase())}</td><td>${esc(x.ward)}</td><td>${esc(new Date(x.occurredAt).toLocaleString())}</td><td>${esc(x.severity)}</td>`;
+    recentRows.append(tr)
+  });
+  if(claims.role==='NATIONAL')drawMap(approved)
+}
+async function transition(h,id,status){let reason=prompt(status==='REJECTED'?'Enter the rejection reason:':'Reason (optional)');if(reason===null)return;if(status==='REJECTED'&&!reason.trim()){notice('A rejection reason is required',true);return}let r=await fetch(`${gateway}/${h}/api/incidents/${id}/transition`,{method:'POST',headers:{...auth(),'Content-Type':'application/json'},body:JSON.stringify({status,reason})});notice(r.ok?'Incident updated':'Update failed ('+r.status+')',!r.ok);if(r.ok)load()}
+incidentForm.onsubmit=async e=>{e.preventDefault();let f=new FormData(incidentForm),indicators={};required[selectedHazard()].forEach(k=>{let v=f.get('indicator_'+k);indicators[k]=isNaN(v)||v.trim()===''?v:Number(v)});let body={ward:f.get('ward'),district:f.get('district'),province:f.get('province'),occurredAt:new Date(f.get('occurredAt')).toISOString(),reporter:claims.sub,severity:f.get('severity'),latitude:Number(f.get('latitude')),longitude:Number(f.get('longitude')),indicators};let r=await fetch(`${gateway}/${selectedHazard()}/api/incidents`,{method:'POST',headers:{...auth(),'Content-Type':'application/json'},body:JSON.stringify(body)});notice(r.ok?'Submitted for approval':'Submission failed ('+r.status+')',!r.ok);if(r.ok){incidentForm.reset();buildForm();load()}};
+function drawMap(data){
+  if(!map){map=L.map('map').setView([-16.78,32.31],8);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(map)}
+  markers.forEach(x=>map.removeLayer(x));
+  markers=data.filter(x=>x.status==='APPROVED').map(x=>{
+    let indicators={};try{indicators=JSON.parse(x.indicatorsJson||'{}')}catch{}
+    const details=Object.entries(indicators).map(([k,v])=>`${esc(k)}: ${esc(v)}`).join('<br>');
+    return L.marker([x.latitude,x.longitude]).addTo(map).bindPopup(
+      `<b>${esc((x.hazardName||selectedHazard()).toUpperCase())} #${esc(x.id)}</b><br>${esc(x.ward)}, ${esc(x.district)}, ${esc(x.province)}<br>${esc(x.severity)} | ${esc(new Date(x.occurredAt).toLocaleString())}<br>Reporter: ${esc(x.reporter)}<br>GPS: ${esc(x.latitude)}, ${esc(x.longitude)}<br>${details}`)
+  })
+}
+login.onsubmit=async e=>{e.preventDefault();let r=await fetch(gateway+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:username.value,password:password.value})});if(!r.ok){loginMessage.textContent='Login failed';return}token=(await r.json()).token;localStorage.dpdmsToken=token;initialise()};refresh.onclick=load;hazard.onchange=()=>{buildForm();load()};logout.onclick=()=>{localStorage.removeItem('dpdmsToken');location.reload()};document.querySelectorAll('[data-format]').forEach(b=>b.onclick=async()=>{let q=new URLSearchParams({hazard:selectedHazard(),ward:reportWard.value,district:reportDistrict.value,severity:reportSeverity.value,status:reportStatus.value});if(reportFromDate.value)q.set('fromDate',reportFromDate.value);if(reportToDate.value)q.set('toDate',reportToDate.value);let r=await fetch(`${gateway}/reports/api/reports/${b.dataset.format}?${q}`,{headers:auth()});if(!r.ok){notice('Report failed ('+r.status+')',true);return}let a=document.createElement('a');a.href=URL.createObjectURL(await r.blob());a.download='dpdms-report.'+b.dataset.format;a.click();URL.revokeObjectURL(a.href)});if(token)initialise();setInterval(()=>{if(token&&!document.hidden)load()},30000)
+</script></body></html>

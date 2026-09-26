@@ -2,6 +2,15 @@ spring:
   application: { name: api-gateway }
   cloud:
     gateway:
-      server: { webflux: { routes: [ { id: auth, uri: lb://auth-service, predicates: [ 'Path=/auth/**' ] }, { id: flood, uri: lb://flood-service, predicates: [ 'Path=/flood/**' ], filters: [ 'StripPrefix=1' ] }, { id: drought, uri: lb://drought-service, predicates: [ 'Path=/drought/**' ], filters: [ 'StripPrefix=1' ] }, { id: fire, uri: lb://fire-service, predicates: [ 'Path=/fire/**' ], filters: [ 'StripPrefix=1' ] }, { id: zoonotic, uri: lb://zoonotic-disease-service, predicates: [ 'Path=/zoonotic/**' ], filters: [ 'StripPrefix=1' ] }, { id: mining, uri: lb://mining-accident-service, predicates: [ 'Path=/mining/**' ], filters: [ 'StripPrefix=1' ] } ] } }
+      server: { webflux: { routes: [ { id: auth, uri: lb://auth-service, predicates: [ 'Path=/auth/**' ] }, { id: alerts, uri: lb://alert-service, predicates: [ 'Path=/alerts/**' ], filters: [ 'StripPrefix=1' ] }, { id: reports, uri: lb://report-service, predicates: [ 'Path=/reports/**' ], filters: [ 'StripPrefix=1' ] }, { id: flood, uri: lb://flood-service, predicates: [ 'Path=/flood/**' ], filters: [ 'StripPrefix=1' ] }, { id: drought, uri: lb://drought-service, predicates: [ 'Path=/drought/**' ], filters: [ 'StripPrefix=1' ] }, { id: fire, uri: lb://fire-service, predicates: [ 'Path=/fire/**' ], filters: [ 'StripPrefix=1' ] }, { id: zoonotic, uri: lb://zoonotic-disease-service, predicates: [ 'Path=/zoonotic/**' ], filters: [ 'StripPrefix=1' ] }, { id: mining, uri: lb://mining-accident-service, predicates: [ 'Path=/mining/**' ], filters: [ 'StripPrefix=1' ] } ] } }
 server: { port: 8080 }
 eureka: { client: { service-url: { defaultZone: '${EUREKA_URL:http://localhost:8761/eureka/}' } } }
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include:
+          - health
+          - info
+          - metrics

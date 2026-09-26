@@ -19,7 +19,7 @@ Browser -> dashboard-service (8090) / API Gateway (8080) -> Eureka (8761)
 
 Every hazard service is a separately packaged Spring Boot application. `hazard-core` deliberately contains only shared source code; it is not deployable and does not share a database. This preserves independent schemas while enforcing the same metadata and security rules everywhere.
 
-`alert-service` is independently deployable on port 8087. Its `POST /api/alerts` endpoint requires a signed bearer token from the matching hazard supervisor (or provincial administrator), persists each queued email or WhatsApp alert, then attempts delivery asynchronously and records `SENT` or `DELIVERY_FAILED`. Approved incidents trigger alerts for floods above the configured danger threshold, active fires, zoonotic clusters/outbreaks, and mining incidents with trapped/injured miners or fatalities. Flood threshold defaults to 2.0 metres and can be changed with `DPDMS_FLOOD_DANGER_LEVEL_METRES`. The default recipients are `groupof5pple@yahoo.com` and `+263781330055`. Configure provider credentials through environment variables; never commit them. A `SENT` status means the provider accepted the request; delivery receipts are not yet processed.
+`alert-service` is independently deployable on port 8087. Its `POST /api/alerts` endpoint requires a signed bearer token from the matching hazard supervisor (or provincial administrator), persists each queued email or WhatsApp alert, then attempts delivery asynchronously. WhatsApp provider message IDs are associated with alert records; signed Meta callbacks update WhatsApp statuses to `DELIVERED`, `READ`, or `DELIVERY_FAILED`. A `SENT` status means the provider accepted the request. Email remains `SENT` because SMTP delivery receipts are not available in this adapter. Approved incidents trigger alerts for floods above the configured danger threshold, active fires, zoonotic clusters/outbreaks, and mining incidents with trapped/injured miners or fatalities. Flood threshold defaults to 2.0 metres and can be changed with `DPDMS_FLOOD_DANGER_LEVEL_METRES`. The default recipients are `groupof5pple@yahoo.com` and `+263781330055`. Configure provider credentials through environment variables; never commit them.
 
 ## Required local software
 
@@ -105,6 +105,17 @@ All seeded accounts use the temporary password `ChangeMe123!` for local marking 
 - `PROVINCIAL_ADMIN`: read access and alert-log access are limited to the single hazard in the signed token. Incident approvals remain supervisor actions.
 - `NATIONAL`: read-only across hazards and sees only approved incidents. Every write attempt returns `403 Forbidden`.
 - Create, edit, delete, and transition actions add audit records. Pending incidents are excluded from national lists, dashboards, and maps.
+- National administrators can create scoped users with `POST /auth/users`; the endpoint hashes passwords with BCrypt and accepts the four supported roles. In the local demo, seeded accounts share the documented temporary password. The VPS Compose deployment disables those demo accounts and creates only the unique bootstrap National account set in `.env`.
+
+Example National-only user provisioning request (use the admin bearer token):
+
+```http
+POST /auth/users
+Authorization: Bearer <national-admin-token>
+Content-Type: application/json
+
+{"username":"flood.recorder@example.org","password":"a-unique-password-of-12-or-more-characters","role":"RECORDER","hazard":"FLOOD","ward":"Rushinga Ward 2"}
+```
 
 The Postman collection includes a cross-hazard request intended to verify the required `403` response. The auth-service issues signed JWTs from BCrypt password hashes; the hazard API integration tests use signed test tokens and an isolated H2 database.
 
@@ -124,12 +135,11 @@ Each request includes the common metadata (`ward`, `district`, `province`, `occu
 
 The project includes MySQL-backed users with BCrypt password hashes and signed JWT login, role-scoped CSV/XLSX/DOCX/PDF report downloads with approval-status filters, the five independently deployable hazard services, gateway, discovery, auditing, and a role-based dashboard. Recorders can submit incidents, supervisors can approve/reject/request corrections, and national users can view approved incidents and download reports.
 
-Remaining work for a production deployment or group submission:
+Remaining work for production deployment or group submission:
 
-1. **Central log aggregation and deployment hardening** - configure a log collector, Docker Compose, HTTPS/reverse proxy, and environment-specific secrets before real deployment.
-2. **Full-system integration testing** - `mvn test` includes hazard API integration coverage with H2 and focused alert/report API tests; run a complete MySQL-backed service-stack acceptance test before final marking.
+1. **Public deployment setup** - provide a Linux VPS and domain, point DNS to the VPS, and configure the secrets in `.env` before bringing up `deploy/compose.yml`.
+2. **Full-stack acceptance check** - run the Compose stack on the VPS and verify MySQL-backed workflows, HTTPS, logs, and the WhatsApp webhook end to end. Docker is not installed on the development computer, so that deployment check has not run here.
 3. **Human deliverables** - complete the group presentation and peer evaluation form; export the Mermaid diagram in `docs/architecture.md` if the marker cannot render Mermaid.
-4. **Delivery receipts** - `SENT` means the provider accepted the request; delivery-status webhooks are not processed.
 
 ## Report downloads
 
@@ -159,9 +169,32 @@ $env:SMTP_AUTH="true"
 $env:SMTP_STARTTLS="true"
 $env:WHATSAPP_ACCESS_TOKEN="your-meta-cloud-api-token"
 $env:WHATSAPP_PHONE_NUMBER_ID="your-meta-phone-number-id"
+$env:WHATSAPP_APP_SECRET="your-meta-app-secret"
+$env:WHATSAPP_WEBHOOK_VERIFY_TOKEN="a-random-value-you-choose"
 $env:DPDMS_FLOOD_DANGER_LEVEL_METRES="2.0"
 ```
 
 To create a manual alert, first sign in through `POST http://localhost:8080/auth/login` as a supervisor and use the returned bearer token. Then call `POST http://localhost:8080/alerts/api/alerts` with JSON fields `hazard` (the supervisor's hazard), `channel` (`EMAIL` or `WHATSAPP`), and `message`; `recipient` is optional and defaults to the configured recipient. Only the matching supervisor or provincial administrator can queue an alert. The service records each attempt. Provider credentials are not included in the repository, so actual delivery requires valid provider settings.
+
+For WhatsApp delivery receipts, configure a public Meta webhook callback at `https://<your-domain>/alerts/api/webhooks/whatsapp`, subscribe to the `messages` webhook field, set `WHATSAPP_APP_SECRET` to the Meta app secret, and use the same locally chosen value for `WHATSAPP_WEBHOOK_VERIFY_TOKEN` in both this service and Meta's verification form. The receiver verifies `X-Hub-Signature-256` against the raw request body before changing alert status. Do not put either secret in Git or send it in chat.
+
+## VPS deployment, HTTPS, and central logs
+
+The production stack definition is in `deploy/compose.yml`. It builds each Spring Boot module, creates the seven MySQL schemas, uses a restricted `dpdms_app` database account, sends service logs to Fluent Bit and Loki, provisions Loki as Grafana's log source, and exposes the dashboard/API only through Caddy. Grafana is bound to the VPS loopback address on port 3000 so it can be reached through an SSH tunnel.
+
+1. Obtain a Linux VPS and a domain. Point the domain's DNS A record to the VPS public IP; allow inbound TCP ports 80 and 443.
+2. Install Docker Engine and the Docker Compose plugin. Clone this repository on the VPS.
+3. Copy `.env.example` to `.env`. Replace every placeholder with unique random secrets, set `DPDMS_DOMAIN` to the real domain, choose the bootstrap National username/password, and add the SMTP and Meta values required for delivery. Restrict `.env` to the deploy user (`chmod 600 .env`). Never commit `.env`.
+4. Start the stack from the repository root:
+
+   ```sh
+   docker compose --env-file .env -f deploy/compose.yml up -d --build
+   docker compose --env-file .env -f deploy/compose.yml ps
+   ```
+
+5. Open `https://<your-domain>` and sign in with the bootstrap National account. Caddy obtains and renews a public TLS certificate when DNS points to the VPS and the HTTP/HTTPS ports are reachable. Use the National account to create individual recorders, supervisors, and provincial administrators through `POST /auth/users`; then remove the bootstrap password from `.env`. Update Meta's webhook callback URL to `https://<your-domain>/alerts/api/webhooks/whatsapp` and verify it with the matching token in `.env`.
+6. To inspect central logs, create an SSH tunnel with `ssh -L 3000:127.0.0.1:3000 <user>@<vps-address>`, then open `http://localhost:3000` and sign in as `admin` with `GRAFANA_ADMIN_PASSWORD` from `.env`.
+
+The current development computer has no Docker CLI, and no public domain/VPS has been supplied. The deployment files are prepared, but the Compose stack and public certificate cannot be launched or verified on the VPS until those are available. MySQL initialization scripts run automatically only when Compose creates a fresh database volume; back up existing data before replacing or removing any production volume.
 
 Never commit `.env`, database passwords, JWT secrets, email keys or WhatsApp tokens.

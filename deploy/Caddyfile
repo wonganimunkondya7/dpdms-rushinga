@@ -1,0 +1,12 @@
+{$DPDMS_DOMAIN} {
+	encode zstd gzip
+
+	@api path /auth/* /alerts/* /reports/* /flood/* /drought/* /fire/* /zoonotic/* /mining/*
+	handle @api {
+		reverse_proxy api-gateway:8080
+	}
+
+	handle {
+		reverse_proxy dashboard-service:8090
+	}
+}

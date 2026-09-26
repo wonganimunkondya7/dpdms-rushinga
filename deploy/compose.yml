@@ -1,0 +1,327 @@
+name: dpdms
+
+x-app-logging: &app-logging
+  driver: fluentd
+  options:
+    fluentd-address: "127.0.0.1:24224"
+    fluentd-async: "true"
+    tag: "dpdms.{{.Name}}"
+
+x-shared-app-env: &shared-app-env
+  MYSQL_USER: dpdms_app
+  MYSQL_PASSWORD: ${MYSQL_APP_PASSWORD:?Set MYSQL_APP_PASSWORD in .env}
+  DPDMS_JWT_SECRET: ${DPDMS_JWT_SECRET:?Set DPDMS_JWT_SECRET in .env}
+  EUREKA_URL: http://discovery-service:8761/eureka/
+
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
+      MYSQL_DATABASE: dpdms_flood
+      MYSQL_USER: dpdms_app
+      MYSQL_PASSWORD: ${MYSQL_APP_PASSWORD:?Set MYSQL_APP_PASSWORD in .env}
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ../database/create-schemas.sql:/docker-entrypoint-initdb.d/01-create-schemas.sql:ro
+      - ./mysql-grants.sql:/docker-entrypoint-initdb.d/02-grant-app-user.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping --host=127.0.0.1 --user=root --password=\"$${MYSQL_ROOT_PASSWORD}\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  fluent-bit:
+    image: fluent/fluent-bit:5.1.2
+    restart: unless-stopped
+    command: ["/fluent-bit/bin/fluent-bit", "-c", "/fluent-bit/etc/fluent-bit.conf"]
+    volumes:
+      - ./fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+    ports:
+      - "127.0.0.1:24224:24224"
+    depends_on:
+      loki:
+        condition: service_started
+
+  loki-init:
+    image: busybox:1.37.0
+    user: "0:0"
+    command: ["sh", "-c", "chown -R 10001:10001 /loki"]
+    volumes:
+      - loki-data:/loki
+    restart: "no"
+
+  loki:
+    image: grafana/loki:3
+    user: "10001:10001"
+    command: ["-config.file=/etc/loki/config.yml"]
+    volumes:
+      - ./loki.yml:/etc/loki/config.yml:ro
+      - loki-data:/loki
+    depends_on:
+      loki-init:
+        condition: service_completed_successfully
+
+  grafana:
+    image: grafana/grafana:13.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD in .env}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      loki:
+        condition: service_started
+
+  discovery-service:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        APP_MODULE: discovery-service
+    hostname: discovery-service
+    restart: unless-stopped
+    logging: *app-logging
+    depends_on:
+      fluent-bit:
+        condition: service_started
+
+  auth-service:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        APP_MODULE: auth-service
+    hostname: auth-service
+    restart: unless-stopped
+    logging: *app-logging
+    environment:
+      <<: *shared-app-env
+      AUTH_DB_URL: jdbc:mysql://mysql:3306/dpdms_auth
+      DPDMS_AUTH_SEED_DEMO_USERS: "false"
+      DPDMS_BOOTSTRAP_ADMIN_USERNAME: ${DPDMS_BOOTSTRAP_ADMIN_USERNAME:-}
+      DPDMS_BOOTSTRAP_ADMIN_PASSWORD: ${DPDMS_BOOTSTRAP_ADMIN_PASSWORD:-}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      discovery-service:
+        condition: service_started
+      fluent-bit:
+        condition: service_started
+
+  alert-service:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        APP_MODULE: alert-service
+    hostname: alert-service
+    restart: unless-stopped
+    logging: *app-logging
+    environment:
+      <<: *shared-app-env
+      ALERT_DB_URL: jdbc:mysql://mysql:3306/dpdms_alert
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_AUTH: ${SMTP_AUTH:-true}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
+      DPDMS_ALERT_EMAIL: ${DPDMS_ALERT_EMAIL:-}
+      DPDMS_ALERT_WHATSAPP_TO: ${DPDMS_ALERT_WHATSAPP_TO:-}
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-}
+      WHATSAPP_WEBHOOK_VERIFY_TOKEN: ${WHATSAPP_WEBHOOK_VERIFY_TOKEN:-}
+      WHATSAPP_GRAPH_VERSION: ${WHATSAPP_GRAPH_VERSION:-v23.0}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      discovery-service:
+        condition: service_started
+      fluent-bit:
+        condition: service_started
+
+  report-service:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        APP_MODULE: report-service
+    hostname: report-service
+    restart: unless-stopped
+    logging: *app-logging
+    environment:
+      <<: *shared-app-env
+    depends_on:
+      discovery-service:
+        condition: service_started
+      fluent-bit:
+        condition: service_started
+
+  flood-service:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        APP_MODULE: flood-service
+    hostname: flood-service
+    restart: unless-stopped
+    logging: *app-logging
+    environment:
+      <<: *shared-app-env
+      FLOOD_DB_URL: jdbc:mysql://mysql:3306/dpdms_flood
+    depends_on:
+      mysql:
+        condition: service_healthy
+      discovery-service:
+        condition: service_started
+      fluent-bit:
+        condition: service_started
+
+  drought-service:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        APP_MODULE: drought-service
+    hostname: drought-service
+    restart: unless-stopped
+    logging: *app-logging
+    environment:
+      <<: *shared-app-env
+      DROUGHT_DB_URL: jdbc:mysql://mysql:3306/dpdms_drought
+    depends_on:
+      mysql:
+        condition: service_healthy
+      discovery-service:
+        condition: service_started
+      fluent-bit:
+        condition: service_started
+
+  fire-service:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        APP_MODULE: fire-service
+    hostname: fire-service
+    restart: unless-stopped
+    logging: *app-logging
+    environment:
+      <<: *shared-app-env
+      FIRE_DB_URL: jdbc:mysql://mysql:3306/dpdms_fire
+    depends_on:
+      mysql:
+        condition: service_healthy
+      discovery-service:
+        condition: service_started
+      fluent-bit:
+        condition: service_started
+
+  zoonotic-disease-service:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        APP_MODULE: zoonotic-disease-service
+    hostname: zoonotic-disease-service
+    restart: unless-stopped
+    logging: *app-logging
+    environment:
+      <<: *shared-app-env
+      ZOONOTIC_DB_URL: jdbc:mysql://mysql:3306/dpdms_zoonotic
+    depends_on:
+      mysql:
+        condition: service_healthy
+      discovery-service:
+        condition: service_started
+      fluent-bit:
+        condition: service_started
+
+  mining-accident-service:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        APP_MODULE: mining-accident-service
+    hostname: mining-accident-service
+    restart: unless-stopped
+    logging: *app-logging
+    environment:
+      <<: *shared-app-env
+      MINING_DB_URL: jdbc:mysql://mysql:3306/dpdms_mining
+    depends_on:
+      mysql:
+        condition: service_healthy
+      discovery-service:
+        condition: service_started
+      fluent-bit:
+        condition: service_started
+
+  api-gateway:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        APP_MODULE: api-gateway
+    hostname: api-gateway
+    restart: unless-stopped
+    logging: *app-logging
+    environment:
+      EUREKA_URL: http://discovery-service:8761/eureka/
+    depends_on:
+      discovery-service:
+        condition: service_started
+      fluent-bit:
+        condition: service_started
+
+  dashboard-service:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        APP_MODULE: dashboard-service
+    hostname: dashboard-service
+    restart: unless-stopped
+    logging: *app-logging
+    environment:
+      DPDMS_API_BASE_URL: ""
+    depends_on:
+      api-gateway:
+        condition: service_started
+      fluent-bit:
+        condition: service_started
+
+  caddy:
+    image: caddy:2.11.4
+    restart: unless-stopped
+    environment:
+      DPDMS_DOMAIN: ${DPDMS_DOMAIN:?Set DPDMS_DOMAIN in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      api-gateway:
+        condition: service_started
+      dashboard-service:
+        condition: service_started
+
+volumes:
+  mysql-data:
+  loki-data:
+  grafana-data:
+  caddy-data:
+  caddy-config:

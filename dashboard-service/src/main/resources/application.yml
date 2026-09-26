@@ -1,5 +1,6 @@
 spring: { application: { name: dashboard-service }, thymeleaf: { cache: false } }
 server: { port: 8090 }
+dpdms: { api-base-url: '${DPDMS_API_BASE_URL:http://localhost:8080}' }
 management:
   endpoints:
     web:

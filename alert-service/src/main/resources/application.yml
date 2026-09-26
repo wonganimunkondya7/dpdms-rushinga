@@ -1,3 +1,31 @@
-spring: { application: { name: alert-service }, datasource: { url: '${ALERT_DB_URL:jdbc:mysql://localhost:3306/dpdms_alert}', username: '${MYSQL_USER:root}', password: '${MYSQL_PASSWORD:}' }, jpa: { hibernate: { ddl-auto: validate } }, sql: { init: { mode: always } } }
+spring:
+  application: { name: alert-service }
+  datasource: { url: '${ALERT_DB_URL:jdbc:mysql://localhost:3306/dpdms_alert}', username: '${MYSQL_USER:root}', password: '${MYSQL_PASSWORD:}' }
+  jpa: { hibernate: { ddl-auto: validate } }
+  sql: { init: { mode: always } }
+  mail:
+    host: ${SMTP_HOST:localhost}
+    port: ${SMTP_PORT:25}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail.smtp.auth: ${SMTP_AUTH:false}
+      mail.smtp.starttls.enable: ${SMTP_STARTTLS:false}
 server: { port: 8087 }
 eureka: { client: { service-url: { defaultZone: '${EUREKA_URL:http://localhost:8761/eureka/}' } } }
+dpdms:
+  alert:
+    email-recipient: ${DPDMS_ALERT_EMAIL:groupof5pple@yahoo.com}
+    whatsapp-recipient: ${DPDMS_ALERT_WHATSAPP_TO:+263781330055}
+    whatsapp-token: ${WHATSAPP_ACCESS_TOKEN:}
+    whatsapp-phone-number-id: ${WHATSAPP_PHONE_NUMBER_ID:}
+    whatsapp-graph-version: ${WHATSAPP_GRAPH_VERSION:v23.0}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include:
+          - health
+          - info
+          - metrics

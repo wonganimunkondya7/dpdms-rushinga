@@ -2,6 +2,8 @@
 workspace:
   id: 2755fc32-2029-4889-8f39-17b4a9b41a57
 
+# Each entry here maps a local resource to one or more corresponding objects in Postman Cloud
+
 cloudResources:
   collections:
     ../postman/collections/DPDMS API checks: 207617b2-d23a-4664-a9fb-e07f7ae6e5e7

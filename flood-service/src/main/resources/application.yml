@@ -1,5 +1,12 @@
 spring: { application: { name: flood-service }, datasource: { url: '${FLOOD_DB_URL:jdbc:mysql://localhost:3306/dpdms_flood}', username: '${MYSQL_USER:root}', password: '${MYSQL_PASSWORD:}' }, jpa: { hibernate: { ddl-auto: validate } }, sql: { init: { mode: always } } }
 server: { port: 8081 }
 eureka: { client: { service-url: { defaultZone: '${EUREKA_URL:http://localhost:8761/eureka/}' } } }
-management: { endpoints: { web: { exposure: { include: health,info,metrics } } } }
 dpdms: { hazard: { code: FLOOD, required-indicators: [peakWaterLevelMetres, riverBasin, householdsDisplaced, areaFloodedHectares, inundationDurationDays] } }
+management:
+  endpoints:
+    web:
+      exposure:
+        include:
+          - health
+          - info
+          - metrics

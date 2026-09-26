@@ -1,5 +1,12 @@
 spring: { application: { name: mining-accident-service }, datasource: { url: '${MINING_DB_URL:jdbc:mysql://localhost:3306/dpdms_mining}', username: '${MYSQL_USER:root}', password: '${MYSQL_PASSWORD:}' }, jpa: { hibernate: { ddl-auto: validate } }, sql: { init: { mode: always } } }
 server: { port: 8085 }
 eureka: { client: { service-url: { defaultZone: '${EUREKA_URL:http://localhost:8761/eureka/}' } } }
-management: { endpoints: { web: { exposure: { include: health,info,metrics } } } }
 dpdms: { hazard: { code: MINING, required-indicators: [mineNameAndType, accidentType, trappedOrInjuredMiners, fatalities, rescueOperationsOngoing] } }
+management:
+  endpoints:
+    web:
+      exposure:
+        include:
+          - health
+          - info
+          - metrics

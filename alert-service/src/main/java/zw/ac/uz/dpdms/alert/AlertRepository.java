@@ -1,1 +1,1 @@
-package zw.ac.uz.dpdms.alert; import org.springframework.data.jpa.repository.JpaRepository; public interface AlertRepository extends JpaRepository<AlertLog,Long>{}
+package zw.ac.uz.dpdms.alert; import java.util.List; import org.springframework.data.jpa.repository.JpaRepository; public interface AlertRepository extends JpaRepository<AlertLog,Long>{ List<AlertLog> findByHazardOrderByCreatedAtDesc(String hazard); List<AlertLog> findAllByOrderByCreatedAtDesc(); }

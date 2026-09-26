@@ -13,6 +13,12 @@ import org.springframework.web.server.ResponseStatusException;
 @Component
 public class ReportDataProvider {
   private static final List<String> HAZARDS = List.of("flood", "drought", "fire", "zoonotic", "mining");
+  private static final Map<String, String> HAZARD_SERVICES = Map.of(
+      "flood", "flood-service",
+      "drought", "drought-service",
+      "fire", "fire-service",
+      "zoonotic", "zoonotic-disease-service",
+      "mining", "mining-accident-service");
   private final ObjectMapper json;
   private final RestClient client;
 
@@ -25,7 +31,7 @@ public class ReportDataProvider {
     List<String> hazards = requestedHazard == null ? HAZARDS : List.of(requestedHazard.toLowerCase());
     return hazards.stream().flatMap(hazard -> {
       try {
-        String body = client.get().uri("http://" + hazard + "-service/api/incidents")
+        String body = client.get().uri("http://" + HAZARD_SERVICES.get(hazard) + "/api/incidents")
             .header("Authorization", auth).retrieve().body(String.class);
         return json.readValue(body, new TypeReference<List<Map<String, Object>>>() {}).stream()
             .map(row -> {

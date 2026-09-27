@@ -29,8 +29,8 @@ public class AlertController {
     String role = jwt.getClaimAsString("role");
     if ("NATIONAL".equals(role)) return logs.findAllByOrderByCreatedAtDesc();
     if ("SUPERVISOR".equals(role) && "ALL".equals(jwt.getClaimAsString("hazard"))) return logs.findAllByOrderByCreatedAtDesc();
-    if (!"PROVINCIAL_ADMIN".equals(role)) {
-      throw new AccessDeniedException("Only national users and provincial administrators may view alert logs");
+    if (!"PROVINCIAL_ADMIN".equals(role) && !"SUPERVISOR".equals(role)) {
+      throw new AccessDeniedException("Only national users, supervisors, and provincial administrators may view alert logs");
     }
     String hazard = jwt.getClaimAsString("hazard");
     if (hazard == null || hazard.isBlank()) throw new AccessDeniedException("A provincial administrator must be scoped to a hazard");

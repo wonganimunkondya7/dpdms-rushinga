@@ -85,7 +85,7 @@ Open `http://localhost:8090` for the dashboard and `http://localhost:8761` for E
 
 ## Security and workflow
 
-JWTs need `sub`, `role`, `hazard`, and, for recorders, `ward` claims. Each hazard API checks role, hazard, ward, and incident ownership on the server. National users can read approved records across hazards but cannot write. Provincial administrators are scoped to one hazard; National is the only role with cross-hazard access. Alert creation requires the matching hazard supervisor or a provincial administrator scoped to that hazard.
+JWTs need `sub`, `role`, `hazard`, and, for recorders, `ward` claims. Each hazard API checks role, hazard, ward, and incident ownership on the server. National users can read approved records across hazards but cannot write. A National administrator may assign a recorder the `ALL` hazard scope; that recorder can submit and read their own incidents across hazard types only within their assigned ward, but cannot approve incidents. Supervisors and provincial administrators remain scoped to one hazard. Alert creation requires the matching hazard supervisor or a provincial administrator scoped to that hazard.
 
 ### Demonstration accounts
 
@@ -100,7 +100,7 @@ All seeded accounts use the temporary password `ChangeMe123!` for local marking 
 | `zoonotic.recorder.ward1` / `zoonotic.supervisor` / `zoonotic.provincial.admin` | RECORDER / SUPERVISOR / PROVINCIAL_ADMIN | ZOONOTIC, Rushinga Ward 1 / ZOONOTIC approval / ZOONOTIC administration |
 | `mining.recorder.ward1` / `mining.supervisor` / `mining.provincial.admin` | RECORDER / SUPERVISOR / PROVINCIAL_ADMIN | MINING, Rushinga Ward 1 / MINING approval / MINING administration |
 
-- `RECORDER`: creates incidents only for their hazard and ward. Reporter identity comes from the signed token. They can read their own records and edit pending/correction-requested records; corrected records return to `PENDING`.
+- `RECORDER`: creates incidents only for their assigned ward. The normal scope is one hazard; a National-created `ALL` scope permits submissions across all hazards while keeping the ward restriction. Reporter identity comes from the signed token. They can read their own records and edit pending/correction-requested records; corrected records return to `PENDING`.
 - `SUPERVISOR`: reads and reviews only their hazard's incidents. Only `PENDING` incidents can be reviewed; rejection requires a reason.
 - `PROVINCIAL_ADMIN`: read access and alert-log access are limited to the single hazard in the signed token. Incident approvals remain supervisor actions.
 - `NATIONAL`: read-only across hazards and sees only approved incidents. Every write attempt returns `403 Forbidden`.

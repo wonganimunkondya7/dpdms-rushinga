@@ -45,6 +45,26 @@ class AuthUserControllerTest {
     assertEquals("Ward 4", saved.getValue().ward);
   }
 
+  @Test void nationalCanCreateAllHazardRecorderWithWardScope() {
+    when(users.findByUsername("recorder.all@example.com")).thenReturn(Optional.empty());
+    when(encoder.encode("a-strong-password")).thenReturn("bcrypt-hash");
+
+    var response = controller.create(
+        new CreateUserRequest("Recorder.All@Example.com", "a-strong-password", "RECORDER", "ALL", "Ward 1"), jwt("NATIONAL"));
+
+    assertEquals(HttpStatus.CREATED, response.getStatusCode());
+    var saved = org.mockito.ArgumentCaptor.forClass(AppUser.class);
+    verify(users).save(saved.capture());
+    assertEquals("ALL", saved.getValue().hazard);
+    assertEquals("Ward 1", saved.getValue().ward);
+  }
+
+  @Test void rejectsAllHazardScopeForSupervisors() {
+    ResponseStatusException error = assertThrows(ResponseStatusException.class,
+        () -> controller.create(new CreateUserRequest("supervisor", "a-strong-password", "SUPERVISOR", "ALL", ""), jwt("NATIONAL")));
+    assertEquals(HttpStatus.BAD_REQUEST, error.getStatusCode());
+  }
+
   @Test void nonNationalCannotCreateUsers() {
     assertThrows(AccessDeniedException.class,
         () -> controller.create(new CreateUserRequest("user", "a-strong-password", "RECORDER", "FLOOD", "Ward 1"), jwt("SUPERVISOR")));

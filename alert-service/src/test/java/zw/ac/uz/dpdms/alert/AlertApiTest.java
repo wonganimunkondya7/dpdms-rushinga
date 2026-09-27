@@ -26,10 +26,12 @@ class AlertApiTest {
   private AlertRepository logs;
   private AlertDeliveryService delivery;
   private MockMvc api;
+  private Jwt authJwt;
 
   @BeforeEach void setUp() {
     logs = mock(AlertRepository.class);
     delivery = mock(AlertDeliveryService.class);
+    authJwt = jwt("flood.supervisor", "SUPERVISOR", "FLOOD");
     when(logs.save(any(AlertLog.class))).thenAnswer(invocation -> { AlertLog alert = invocation.getArgument(0); alert.id = 123L; return alert; });
     api = MockMvcBuilders.standaloneSetup(new AlertController(logs, delivery,
         "groupof5pple@yahoo.com", "+263781330055"))
@@ -40,9 +42,7 @@ class AlertApiTest {
           }
           @Override public Object resolveArgument(MethodParameter parameter, ModelAndViewContainer container,
               NativeWebRequest request, WebDataBinderFactory binderFactory) {
-            Instant now = Instant.now();
-            return new Jwt("test", now, now.plusSeconds(60), Map.of("alg", "HS256"),
-                Map.of("sub", "flood.supervisor", "role", "SUPERVISOR", "hazard", "FLOOD"));
+            return authJwt;
           }
         }).build();
   }
@@ -56,9 +56,24 @@ class AlertApiTest {
     verify(delivery).deliver(123L);
   }
 
+  @Test void allHazardSupervisorCanQueueAlertsForAnyHazard() throws Exception {
+    authJwt = jwt("supervisor", "SUPERVISOR", "ALL");
+    api.perform(post("/api/alerts").contentType("application/json")
+        .content("{\"hazard\":\"DROUGHT\",\"channel\":\"EMAIL\",\"message\":\"Dry conditions\"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.hazard").value("DROUGHT"));
+    verify(delivery).deliver(123L);
+  }
+
   @Test void rejectsUnknownChannel() throws Exception {
     api.perform(post("/api/alerts").contentType("application/json")
         .content("{\"hazard\":\"FLOOD\",\"channel\":\"SMS\",\"message\":\"Alert\"}"))
         .andExpect(status().isBadRequest());
+  }
+
+  private Jwt jwt(String subject, String role, String hazard) {
+    Instant now = Instant.now();
+    return new Jwt("test", now, now.plusSeconds(60), Map.of("alg", "HS256"),
+        Map.of("sub", subject, "role", role, "hazard", hazard));
   }
 }

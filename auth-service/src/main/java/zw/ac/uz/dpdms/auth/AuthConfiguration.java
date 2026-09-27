@@ -35,6 +35,8 @@ public class AuthConfiguration {
   private void seedDemoAccounts(UserRepository users, PasswordEncoder encoder, String demoPassword) {
     if (demoPassword.length() < 12) throw new IllegalStateException("DPDMS_DEMO_PASSWORD must be at least 12 characters");
     seed(users, encoder, "national@dpdms.local", demoPassword, "NATIONAL", "", "");
+    seed(users, encoder, "recorder.ward1", demoPassword, "RECORDER", "ALL", "Rushinga Ward 1");
+    seed(users, encoder, "supervisor", demoPassword, "SUPERVISOR", "ALL", "");
     for (String hazard : new String[] {"FLOOD", "DROUGHT", "FIRE", "ZOONOTIC", "MINING"}) {
       String slug = hazard.toLowerCase().replace("_", "");
       seed(users, encoder, slug + ".recorder.ward1", demoPassword, "RECORDER", hazard, "Rushinga Ward 1");

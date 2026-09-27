@@ -59,10 +59,19 @@ class AuthUserControllerTest {
     assertEquals("Ward 1", saved.getValue().ward);
   }
 
-  @Test void rejectsAllHazardScopeForSupervisors() {
-    ResponseStatusException error = assertThrows(ResponseStatusException.class,
-        () -> controller.create(new CreateUserRequest("supervisor", "a-strong-password", "SUPERVISOR", "ALL", ""), jwt("NATIONAL")));
-    assertEquals(HttpStatus.BAD_REQUEST, error.getStatusCode());
+  @Test void nationalCanCreateAllHazardSupervisorWithoutWardScope() {
+    when(users.findByUsername("supervisor")).thenReturn(Optional.empty());
+    when(encoder.encode("a-strong-password")).thenReturn("bcrypt-hash");
+
+    var response = controller.create(
+        new CreateUserRequest("Supervisor", "a-strong-password", "SUPERVISOR", "ALL", ""), jwt("NATIONAL"));
+
+    assertEquals(HttpStatus.CREATED, response.getStatusCode());
+    var saved = org.mockito.ArgumentCaptor.forClass(AppUser.class);
+    verify(users).save(saved.capture());
+    assertEquals("supervisor", saved.getValue().username);
+    assertEquals("ALL", saved.getValue().hazard);
+    assertEquals("", saved.getValue().ward);
   }
 
   @Test void nonNationalCannotCreateUsers() {

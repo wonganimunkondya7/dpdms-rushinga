@@ -42,8 +42,8 @@ public class AuthUserController {
     if ("NATIONAL".equals(role)) {
       if (!hazard.isBlank() || !ward.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "National accounts cannot have a hazard or ward scope");
     } else {
-      boolean allHazardRecorder = "RECORDER".equals(role) && "ALL".equals(hazard);
-      if (!allHazardRecorder && !HAZARDS.contains(hazard)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A valid hazard scope is required");
+      boolean allHazardRole = ("RECORDER".equals(role) || "SUPERVISOR".equals(role)) && "ALL".equals(hazard);
+      if (!allHazardRole && !HAZARDS.contains(hazard)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A valid hazard scope is required");
       if ("RECORDER".equals(role) && ward.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Recorder accounts require a ward");
       if (!"RECORDER".equals(role) && !ward.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only recorders may have a ward scope");
     }

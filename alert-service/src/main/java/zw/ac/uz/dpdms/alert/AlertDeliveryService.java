@@ -49,14 +49,17 @@ public class AlertDeliveryService {
   public void deliver(Long id) {
     logs.findById(id).ifPresent(alert -> {
       String outcome = "SENT";
+      String failure = null;
       try {
         if ("EMAIL".equals(alert.channel)) sendEmail(alert);
         else sendWhatsApp(alert);
       } catch (Exception e) {
         if (e instanceof RestClientResponseException responseError) {
+          failure = "Provider returned HTTP " + responseError.getStatusCode().value() + ": " + responseError.getResponseBodyAsString();
           log.warn("Alert {} delivery failed: provider returned HTTP {}: {}", id,
               responseError.getStatusCode().value(), responseError.getResponseBodyAsString());
         } else {
+          failure = e.getClass().getSimpleName() + ": " + e.getMessage();
           log.warn("Alert {} delivery failed: {}: {}", id, e.getClass().getSimpleName(), e.getMessage());
         }
         outcome = "DELIVERY_FAILED";
@@ -64,6 +67,7 @@ public class AlertDeliveryService {
       AlertLog latest = logs.findById(id).orElse(alert);
       if (!"DELIVERED".equals(latest.deliveryStatus) && !"READ".equals(latest.deliveryStatus)) {
         latest.deliveryStatus = outcome;
+        latest.deliveryError = failure == null ? null : failure.substring(0, Math.min(failure.length(), 1000));
       }
       logs.save(latest);
     });

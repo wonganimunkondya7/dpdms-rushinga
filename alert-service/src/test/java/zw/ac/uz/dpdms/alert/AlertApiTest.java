@@ -2,6 +2,7 @@ package zw.ac.uz.dpdms.alert;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -59,11 +60,13 @@ class AlertApiTest {
 
   @Test void allHazardSupervisorCanQueueAlertsForAnyHazard() throws Exception {
     authJwt = jwt("supervisor", "SUPERVISOR", "ALL");
-    api.perform(post("/api/alerts").contentType("application/json")
-        .content("{\"hazard\":\"DROUGHT\",\"channel\":\"EMAIL\",\"message\":\"Dry conditions\"}"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.hazard").value("DROUGHT"));
-    verify(delivery).deliver(123L);
+    for (String hazard : java.util.List.of("FLOOD", "DROUGHT", "FIRE", "ZOONOTIC", "MINING")) {
+      api.perform(post("/api/alerts").contentType("application/json")
+          .content("{\"hazard\":\"" + hazard + "\",\"channel\":\"EMAIL\",\"message\":\"Test conditions\"}"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.hazard").value(hazard));
+    }
+    verify(delivery, times(5)).deliver(123L);
   }
 
   @Test void scopedSupervisorCanViewOnlyScopedHazardAlertHistory() throws Exception {

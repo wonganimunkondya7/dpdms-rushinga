@@ -25,7 +25,7 @@ function indicatorInput(key){
   return input(label,name)
 }
 function buildForm(){const h=selectedHazard(),base=input('Ward','ward','text',claims.ward||'Rushinga Ward 1')+input('District','district','text','Rushinga')+input('Province','province','text','Mashonaland Central')+input('Occurred at','occurredAt','datetime-local')+'<label>Severity<select name="severity" required><option>LOW</option><option>MEDIUM</option><option>HIGH</option><option>CRITICAL</option></select></label>'+input('Latitude','latitude','number','-16.784')+input('Longitude','longitude','number','32.305');incidentForm.innerHTML=base+required[h].map(indicatorInput).join('')}
-function allHazardAccess(){return claims.role==='NATIONAL'||(claims.role==='RECORDER'&&claims.hazard==='ALL')}
+function allHazardAccess(){return claims.role==='NATIONAL'||((claims.role==='RECORDER'||claims.role==='SUPERVISOR')&&claims.hazard==='ALL')}
 function initialise(){claims=decode(token);identity.textContent=`Signed in as ${claims.sub||'user'} (${claims.role||'unknown'})`;loginPanel.classList.add('hidden');app.classList.remove('hidden');let allHazards=allHazardAccess(),allowed=allHazards||hazard.value.toUpperCase()===claims.hazard;hazard.disabled=!allHazards;if(!allowed&&claims.hazard){hazard.value=claims.hazard.toLowerCase()} createPanel.classList.toggle('hidden',claims.role!=='RECORDER');mapPanel.classList.toggle('hidden',claims.role!=='NATIONAL');buildForm();load()}
 async function load(){
   notice('Loading…');

@@ -85,7 +85,7 @@ Open `http://localhost:8090` for the dashboard and `http://localhost:8761` for E
 
 ## Security and workflow
 
-JWTs need `sub`, `role`, `hazard`, and, for recorders, `ward` claims. Each hazard API checks role, hazard, ward, and incident ownership on the server. National users can read approved records across hazards but cannot write. A National administrator may assign a recorder the `ALL` hazard scope; that recorder can submit and read their own incidents across hazard types only within their assigned ward, but cannot approve incidents. Supervisors and provincial administrators remain scoped to one hazard. Alert creation requires the matching hazard supervisor or a provincial administrator scoped to that hazard.
+JWTs need `sub`, `role`, `hazard`, and, for recorders, `ward` claims. Each hazard API checks role, hazard, ward, and incident ownership on the server. National users can read approved records across hazards but cannot write. A National administrator may assign a recorder the `ALL` hazard scope; that recorder can submit and read their own incidents across hazard types only within their assigned ward, but cannot approve incidents. Supervisors may be scoped to one hazard or assigned `ALL` to review incidents across hazards. Provincial administrators remain scoped to one hazard. Alert creation requires a matching hazard supervisor (a supervisor with `ALL` may queue alerts for every hazard) or a provincial administrator scoped to that hazard.
 
 ### Demonstration accounts
 
@@ -94,6 +94,7 @@ All seeded accounts use the temporary password `ChangeMe123!` for local marking 
 | Username | Role | Scope |
 | --- | --- | --- |
 | `national@dpdms.local` | NATIONAL | Approved records across all hazards; read only |
+| `recorder.ward1` / `supervisor` | RECORDER / SUPERVISOR | ALL, Rushinga Ward 1 / ALL hazards approval |
 | `flood.recorder.ward1` / `flood.supervisor` / `flood.provincial.admin` | RECORDER / SUPERVISOR / PROVINCIAL_ADMIN | FLOOD, Rushinga Ward 1 / FLOOD approval / FLOOD administration |
 | `drought.recorder.ward1` / `drought.supervisor` / `drought.provincial.admin` | RECORDER / SUPERVISOR / PROVINCIAL_ADMIN | DROUGHT, Rushinga Ward 1 / DROUGHT approval / DROUGHT administration |
 | `fire.recorder.ward1` / `fire.supervisor` / `fire.provincial.admin` | RECORDER / SUPERVISOR / PROVINCIAL_ADMIN | FIRE, Rushinga Ward 1 / FIRE approval / FIRE administration |
@@ -101,7 +102,7 @@ All seeded accounts use the temporary password `ChangeMe123!` for local marking 
 | `mining.recorder.ward1` / `mining.supervisor` / `mining.provincial.admin` | RECORDER / SUPERVISOR / PROVINCIAL_ADMIN | MINING, Rushinga Ward 1 / MINING approval / MINING administration |
 
 - `RECORDER`: creates incidents only for their assigned ward. The normal scope is one hazard; a National-created `ALL` scope permits submissions across all hazards while keeping the ward restriction. Reporter identity comes from the signed token. They can read their own records and edit pending/correction-requested records; corrected records return to `PENDING`.
-- `SUPERVISOR`: reads and reviews only their hazard's incidents. Only `PENDING` incidents can be reviewed; rejection requires a reason.
+- `SUPERVISOR`: reads and reviews incidents for their assigned hazard, or all hazards when assigned `ALL`. Only `PENDING` incidents can be reviewed; rejection requires a reason.
 - `PROVINCIAL_ADMIN`: read access and alert-log access are limited to the single hazard in the signed token. Incident approvals remain supervisor actions.
 - `NATIONAL`: read-only across hazards and sees only approved incidents. Every write attempt returns `403 Forbidden`.
 - Create, edit, delete, and transition actions add audit records. Pending incidents are excluded from national lists, dashboards, and maps.

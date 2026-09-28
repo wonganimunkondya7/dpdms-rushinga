@@ -45,6 +45,7 @@ public class IncidentController {
   public List<Incident> list(@AuthenticationPrincipal Jwt jwt) {
     access.read(jwt);
     if (access.national(jwt)) return incidents.findByStatus(IncidentStatus.APPROVED);
+    if (access.provincialAdmin(jwt)) return incidents.findByProvinceIgnoreCaseAndStatus(access.province(jwt), IncidentStatus.APPROVED);
     if ("RECORDER".equals(jwt.getClaimAsString("role"))) {
       return incidents.findByReporterAndWard(jwt.getSubject(), jwt.getClaimAsString("ward"));
     }
@@ -135,6 +136,11 @@ public class IncidentController {
     String role = jwt.getClaimAsString("role");
     if (access.national(jwt) && incident.status != IncidentStatus.APPROVED) {
       throw new AccessDeniedException("403: national users may only view approved incidents");
+    }
+    if (access.provincialAdmin(jwt)
+        && (incident.status != IncidentStatus.APPROVED || incident.province == null
+            || !incident.province.equalsIgnoreCase(access.province(jwt)))) {
+      throw new AccessDeniedException("403: provincial administrators may only view approved records in their province");
     }
     if ("RECORDER".equals(role)
         && (!incident.reporter.equals(jwt.getSubject())

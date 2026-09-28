@@ -38,14 +38,20 @@ public class AuthUserController {
     String role = request.role().trim().toUpperCase(Locale.ROOT);
     String hazard = request.hazard() == null ? "" : request.hazard().trim().toUpperCase(Locale.ROOT);
     String ward = request.ward() == null ? "" : request.ward().trim();
+    String province = request.province() == null ? "" : request.province().trim();
     if (!ROLES.contains(role)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown role");
     if ("NATIONAL".equals(role)) {
-      if (!hazard.isBlank() || !ward.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "National accounts cannot have a hazard or ward scope");
+      if (!hazard.isBlank() || !ward.isBlank() || !province.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "National accounts cannot have a geographic or hazard scope");
+    } else if ("PROVINCIAL_ADMIN".equals(role)) {
+      if (!"ALL".equals(hazard)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Provincial administrators must cover all hazards");
+      if (province.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Provincial administrator accounts require a province scope");
+      if (!ward.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Provincial administrators cannot have a ward scope");
     } else {
       boolean allHazardRole = ("RECORDER".equals(role) || "SUPERVISOR".equals(role)) && "ALL".equals(hazard);
       if (!allHazardRole && !HAZARDS.contains(hazard)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A valid hazard scope is required");
       if ("RECORDER".equals(role) && ward.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Recorder accounts require a ward");
       if (!"RECORDER".equals(role) && !ward.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only recorders may have a ward scope");
+      if (!province.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only provincial administrators may have a province scope");
     }
     if (users.findByUsername(username).isPresent()) throw new ResponseStatusException(HttpStatus.CONFLICT, "Username already exists");
     AppUser user = new AppUser();
@@ -54,7 +60,8 @@ public class AuthUserController {
     user.role = role;
     user.hazard = hazard;
     user.ward = ward;
+    user.province = province;
     users.save(user);
-    return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("username", username, "role", role, "hazard", hazard, "ward", ward));
+    return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("username", username, "role", role, "hazard", hazard, "ward", ward, "province", province));
   }
 }

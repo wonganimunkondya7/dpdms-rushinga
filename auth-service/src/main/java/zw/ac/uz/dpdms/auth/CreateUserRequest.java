@@ -8,4 +8,5 @@ public record CreateUserRequest(
     @NotBlank @Size(min = 12, max = 200) String password,
     @NotBlank String role,
     String hazard,
-    String ward) {}
+    String ward,
+    @Size(max = 100) String province) {}

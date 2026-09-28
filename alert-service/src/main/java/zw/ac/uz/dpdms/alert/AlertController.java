@@ -28,7 +28,7 @@ public class AlertController {
   @GetMapping public List<AlertLog> all(@AuthenticationPrincipal Jwt jwt) {
     String role = jwt.getClaimAsString("role");
     if ("NATIONAL".equals(role)) return logs.findAllByOrderByCreatedAtDesc();
-    if ("SUPERVISOR".equals(role) && "ALL".equals(jwt.getClaimAsString("hazard"))) return logs.findAllByOrderByCreatedAtDesc();
+    if (("SUPERVISOR".equals(role) || "PROVINCIAL_ADMIN".equals(role)) && "ALL".equals(jwt.getClaimAsString("hazard"))) return logs.findAllByOrderByCreatedAtDesc();
     if (!"PROVINCIAL_ADMIN".equals(role) && !"SUPERVISOR".equals(role)) {
       throw new AccessDeniedException("Only national users, supervisors, and provincial administrators may view alert logs");
     }
@@ -47,7 +47,8 @@ public class AlertController {
     boolean supervisorForHazard = "SUPERVISOR".equals(role)
         && (hazard.equals(supervisorScope) || "ALL".equals(supervisorScope));
     boolean administratorForHazard = "PROVINCIAL_ADMIN".equals(role)
-        && hazard.equals(jwt.getClaimAsString("hazard"));
+        && "ALL".equals(jwt.getClaimAsString("hazard"))
+        && jwt.getClaimAsString("province") != null && !jwt.getClaimAsString("province").isBlank();
     if (!supervisorForHazard && !administratorForHazard) {
       throw new AccessDeniedException("Only the relevant supervisor or a provincial administrator may queue alerts");
     }

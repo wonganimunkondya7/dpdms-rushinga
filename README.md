@@ -19,26 +19,45 @@ Browser -> dashboard-service (8090) / API Gateway (8080) -> Eureka (8761)
 
 Every hazard service is a separately packaged Spring Boot application. `hazard-core` deliberately contains only shared source code; it is not deployable and does not share a database. This preserves independent schemas while enforcing the same metadata and security rules everywhere.
 
-`alert-service` is independently deployable on port 8087. Its `POST /api/alerts` endpoint requires a signed bearer token from the matching hazard supervisor (or provincial administrator), persists each queued email or WhatsApp alert, then attempts delivery asynchronously. WhatsApp provider message IDs are associated with alert records; signed Meta callbacks update WhatsApp statuses to `DELIVERED`, `READ`, or `DELIVERY_FAILED`. A `SENT` status means the provider accepted the request. Email remains `SENT` because SMTP delivery receipts are not available in this adapter. Approved incidents trigger alerts for floods above the configured danger threshold, active fires, zoonotic clusters/outbreaks, and mining incidents with trapped/injured miners or fatalities. Flood threshold defaults to 2.0 metres and can be changed with `DPDMS_FLOOD_DANGER_LEVEL_METRES`. The default recipients are `groupof5pple@yahoo.com` and `+263781330055`. Configure provider credentials through environment variables; never commit them.
+`alert-service` is independently deployable on port 8087. Its `POST /api/alerts` endpoint requires a signed bearer token from an authorized supervisor or provincial administrator, persists each queued email or WhatsApp alert, then attempts delivery asynchronously. WhatsApp provider message IDs are associated with alert records; signed Meta callbacks update WhatsApp statuses to `DELIVERED`, `READ`, or `DELIVERY_FAILED`. A `SENT` status means the provider accepted the request. Email remains `SENT` because SMTP delivery receipts are not available in this adapter. Approved incidents trigger alerts for floods above the configured danger threshold, active fires, zoonotic clusters/outbreaks, and mining incidents with trapped/injured miners or fatalities. Flood threshold defaults to 2.0 metres and can be changed with `DPDMS_FLOOD_DANGER_LEVEL_METRES`. Configure provider credentials and recipient addresses through environment variables; none are stored as defaults in the repository.
 
 ## Required local software
 
 | Tool | Status on this computer | Action |
 | --- | --- | --- |
-| Java 21+ | Java 26 is installed | Ready |
-| Maven | Maven 3.9.16 is installed | Ready |
-| Git | Available; `origin` is configured | Commit and push reviewed changes before submission |
+| Java 21+ | Java 26 is installed | Ready for running services directly |
+| Maven | Maven 3.9.16 is installed | Ready for building and running services directly |
+| Git | Installed; repository has an `origin` remote | Commit and push reviewed changes before submission |
+| Docker Desktop + Compose | Installed; all 11 images built and the stack started locally | Ready for the containerized workflow below |
+| MySQL Server + `mysql` command | Needed only for running services directly on Windows | Not needed when using Compose; the stack starts MySQL |
 | VS Code | Installed | Ready |
-| MySQL Server + `mysql` command | Required | Install MySQL Community Server; add its `bin` folder to PATH |
-| Node.js / npm | Node runtime is bundled for Codex, but `npm` is not detected in your normal PATH | Not needed for this Thymeleaf UI |
-| Postman or Insomnia | Not detected from command line | Install either; import `postman/DPDMS.postman_collection.json` |
+| Node.js / npm | Not required | The Thymeleaf UI does not use a JavaScript build tool |
+| Postman or Insomnia | Optional | Import `postman/DPDMS.postman_collection.json` to exercise the APIs |
+
+## Run locally with Docker Compose
+
+This is the recommended way to run the complete system on Windows. Compose starts MySQL, all five hazard services, authentication, alerts, reports, the dashboard, gateway, discovery, Caddy, and the logging services.
+
+1. Start Docker Desktop and enable **Host networking** under **Settings → Resources → Network** so image builds can download Maven dependencies.
+2. From the repository root, copy `.env.example` to `.env`. Replace each password and secret placeholder with a unique value. This deployment disables demo users and creates the National account from `DPDMS_BOOTSTRAP_ADMIN_USERNAME` and `DPDMS_BOOTSTRAP_ADMIN_PASSWORD` in `.env`.
+3. Build and start the stack:
+
+   ```powershell
+   docker compose --env-file .env -f deploy/compose.yml up -d --build
+   docker compose --env-file .env -f deploy/compose.yml ps
+   ```
+
+4. Open `http://localhost` and sign in with the bootstrap National username/password you set in `.env`. Use that account to create other users. Do not paste passwords or provider tokens into source files or Git.
+5. Follow service logs with `docker compose --env-file .env -f deploy/compose.yml logs -f`; press `Ctrl+C` to stop following logs without stopping services.
+
+Grafana is bound to `127.0.0.1:3000`; sign in as `admin` with `GRAFANA_ADMIN_PASSWORD` from `.env`. Stop the stack with `docker compose --env-file .env -f deploy/compose.yml down`. This keeps database data in its named volume; do not add `-v` unless you intend to delete that data.
 
 ## MySQL command-line setup
 
 1. Open Command Prompt or the MySQL shell and create the separate schemas:
 
    ```powershell
-   mysql -u root -p < database/create-schemas.sql
+   mysql -u root -p -e "source database/create-schemas.sql"
    ```
 
 2. Set credentials only in your terminal session, never in Git:
@@ -54,7 +73,7 @@ PowerShell process variables do not carry into other VS Code terminals. Set MYSQ
 3. After all five hazard services have started once (so all tables exist), add one sample incident per hazard. The script uses fixed IDs and can be rerun safely:
 
    ```powershell
-   mysql -u root -p < database/seed-example.sql
+   mysql -u root -p -e "source database/seed-example.sql"
    ```
 
 ## Build and start
@@ -81,30 +100,32 @@ mvn -pl alert-service spring-boot:run
 mvn -pl report-service spring-boot:run
 ```
 
-Open `http://localhost:8090` for the dashboard and `http://localhost:8761` for Eureka. Swagger UI is at `/swagger-ui/index.html` on each hazard service (ports 8081-8085), auth-service (8086), alert-service (8087), and report-service (8088). Health and basic metrics are available through Actuator.
+For the manual Maven workflow, open `http://localhost:8090` for the dashboard and `http://localhost:8761` for Eureka. Swagger UI is at `/swagger-ui/index.html` on each hazard service (ports 8081-8085), auth-service (8086), alert-service (8087), and report-service (8088). Health and basic metrics are available through Actuator. These direct service ports are not published by Compose; use `http://localhost` for the containerized workflow.
 
 ## Security and workflow
 
-JWTs need `sub`, `role`, `hazard`, and, for recorders, `ward` claims. Each hazard API checks role, hazard, ward, and incident ownership on the server. National users can read approved records across hazards but cannot write. A National administrator may assign a recorder the `ALL` hazard scope; that recorder can submit and read their own incidents across hazard types only within their assigned ward, but cannot approve incidents. Supervisors may be scoped to one hazard or assigned `ALL` to review incidents across hazards. Provincial administrators remain scoped to one hazard. Alert creation requires a matching hazard supervisor (a supervisor with `ALL` may queue alerts for every hazard) or a provincial administrator scoped to that hazard.
+JWTs need `sub`, `role`, and `hazard`; recorder tokens also include `ward`, and provincial administrator tokens include `province`. Each hazard API checks role, hazard, ward, and incident ownership on the server. National users can read approved records across hazards but cannot write. A National administrator may assign a recorder the `ALL` hazard scope; that recorder can submit and read their own incidents across hazard types only within their assigned ward, but cannot approve incidents. Supervisors may be scoped to one hazard or assigned `ALL` to review incidents across hazards. Provincial administrators have an `ALL` hazard scope, but incident reads are restricted server-side to approved records whose province matches their assigned province. They can view that scoped data on the map, and queue alerts for every hazard. Provincial administrators cannot create, edit, or administer user accounts; account creation remains National-only. They cannot review incident approvals.
 
-### Demonstration accounts
+### Local Maven demonstration accounts
 
-All seeded accounts use the temporary password `ChangeMe123!` for local marking only. Change or remove them before deployment.
+When demo seeding is enabled for the Maven workflow, all seeded accounts use the temporary password `ChangeMe123!` for local marking only. Compose disables these accounts and instead uses the bootstrap National credentials in `.env`.
 
 | Username | Role | Scope |
 | --- | --- | --- |
 | `national@dpdms.local` | NATIONAL | Approved records across all hazards; read only |
 | `recorder.ward1` / `supervisor` | RECORDER / SUPERVISOR | ALL, Rushinga Ward 1 / ALL hazards approval |
-| `flood.recorder.ward1` / `flood.supervisor` / `flood.provincial.admin` | RECORDER / SUPERVISOR / PROVINCIAL_ADMIN | FLOOD, Rushinga Ward 1 / FLOOD approval / FLOOD administration |
-| `drought.recorder.ward1` / `drought.supervisor` / `drought.provincial.admin` | RECORDER / SUPERVISOR / PROVINCIAL_ADMIN | DROUGHT, Rushinga Ward 1 / DROUGHT approval / DROUGHT administration |
-| `fire.recorder.ward1` / `fire.supervisor` / `fire.provincial.admin` | RECORDER / SUPERVISOR / PROVINCIAL_ADMIN | FIRE, Rushinga Ward 1 / FIRE approval / FIRE administration |
-| `zoonotic.recorder.ward1` / `zoonotic.supervisor` / `zoonotic.provincial.admin` | RECORDER / SUPERVISOR / PROVINCIAL_ADMIN | ZOONOTIC, Rushinga Ward 1 / ZOONOTIC approval / ZOONOTIC administration |
-| `mining.recorder.ward1` / `mining.supervisor` / `mining.provincial.admin` | RECORDER / SUPERVISOR / PROVINCIAL_ADMIN | MINING, Rushinga Ward 1 / MINING approval / MINING administration |
+| `provincial.admin` | PROVINCIAL_ADMIN | ALL hazards; approved records and map limited to Mashonaland Central; can queue all-hazard alerts |
+| `flood.recorder.ward1` / `flood.supervisor` | RECORDER / SUPERVISOR | FLOOD, Rushinga Ward 1 / FLOOD approval |
+| `drought.recorder.ward1` / `drought.supervisor` | RECORDER / SUPERVISOR | DROUGHT, Rushinga Ward 1 / DROUGHT approval |
+| `fire.recorder.ward1` / `fire.supervisor` | RECORDER / SUPERVISOR | FIRE, Rushinga Ward 1 / FIRE approval |
+| `zoonotic.recorder.ward1` / `zoonotic.supervisor` | RECORDER / SUPERVISOR | ZOONOTIC, Rushinga Ward 1 / ZOONOTIC approval |
+| `mining.recorder.ward1` / `mining.supervisor` | RECORDER / SUPERVISOR | MINING, Rushinga Ward 1 / MINING approval |
 
 - `RECORDER`: creates incidents only for their assigned ward. The normal scope is one hazard; a National-created `ALL` scope permits submissions across all hazards while keeping the ward restriction. Reporter identity comes from the signed token. They can read their own records and edit pending/correction-requested records; corrected records return to `PENDING`.
 - `SUPERVISOR`: reads and reviews incidents for their assigned hazard, or all hazards when assigned `ALL`. Only `PENDING` incidents can be reviewed; rejection requires a reason.
-- `PROVINCIAL_ADMIN`: read access and alert-log access are limited to the single hazard in the signed token. Incident approvals remain supervisor actions.
-- `NATIONAL`: read-only across hazards and sees only approved incidents. Every write attempt returns `403 Forbidden`.
+- `PROVINCIAL_ADMIN`: read-only access to approved incidents in the province claim across all hazards, plus map view and all-hazard alert management. Cannot approve incidents or manage user accounts.
+- `NATIONAL`: read-only for incident data across hazards and sees only approved incidents. Incident create/update/delete/approval attempts return `403 Forbidden`. The National account is also permitted to provision scoped user accounts through the separate account-administration endpoint.
+- **Assignment scope note:** the brief requires ward recorders and provincial hazard supervisors to be limited to one hazard, and reserves cross-hazard visibility for NATIONAL. At your request, this build also provides cross-hazard recorder/supervisor demo accounts and an all-hazard Provincial Admin account with province-scoped approved-only reads. These role-scope choices are enforced by the backend, but they intentionally differ from the assignment's strict single-hazard/single-cross-hazard-role rules. For strict rubric alignment, use the hazard-specific recorder/supervisor accounts and reserve cross-hazard visibility for NATIONAL. Account provisioning is a separate National-only administration feature; it does not grant incident write or approval access.
 - Create, edit, delete, and transition actions add audit records. Pending incidents are excluded from national lists, dashboards, and maps.
 - National administrators can create scoped users with `POST /auth/users`; the endpoint hashes passwords with BCrypt and accepts the four supported roles. In the local demo, seeded accounts share the documented temporary password. The VPS Compose deployment disables those demo accounts and creates only the unique bootstrap National account set in `.env`.
 
@@ -115,10 +136,10 @@ POST /auth/users
 Authorization: Bearer <national-admin-token>
 Content-Type: application/json
 
-{"username":"flood.recorder@example.org","password":"a-unique-password-of-12-or-more-characters","role":"RECORDER","hazard":"FLOOD","ward":"Rushinga Ward 2"}
+{"username":"provincial@example.org","password":"a-unique-password-of-12-or-more-characters","role":"PROVINCIAL_ADMIN","hazard":"ALL","province":"Mashonaland Central"}
 ```
 
-The Postman collection includes a cross-hazard request intended to verify the required `403` response. The auth-service issues signed JWTs from BCrypt password hashes; the hazard API integration tests use signed test tokens and an isolated H2 database.
+The Postman collection includes a cross-hazard request intended to verify the required `403` response for hazard-scoped accounts. The auth-service issues signed JWTs from BCrypt password hashes; the hazard API integration tests use signed test tokens and an isolated H2 database.
 
 ## Hazard indicators
 
@@ -157,11 +178,11 @@ Filters are `hazard`, `ward`, `district`, `severity`, `fromDate`, `toDate`, and 
 
 ### Alert provider configuration
 
-Set these variables before starting `alert-service` (the recipient defaults above can be overridden):
+Set these variables before starting `alert-service`. Configure real recipient addresses locally; the project does not supply recipient defaults:
 
 ```powershell
-$env:DPDMS_ALERT_EMAIL="groupof5pple@yahoo.com"
-$env:DPDMS_ALERT_WHATSAPP_TO="+263781330055"
+$env:DPDMS_ALERT_EMAIL="recipient@example.org"
+$env:DPDMS_ALERT_WHATSAPP_TO="+263XXXXXXXXX"
 $env:SMTP_HOST="smtp.example.com"
 $env:SMTP_PORT="587"
 $env:SMTP_USERNAME="your-sender@example.com"
@@ -175,7 +196,7 @@ $env:WHATSAPP_WEBHOOK_VERIFY_TOKEN="a-random-value-you-choose"
 $env:DPDMS_FLOOD_DANGER_LEVEL_METRES="2.0"
 ```
 
-To create a manual alert, first sign in through `POST http://localhost:8080/auth/login` as a supervisor and use the returned bearer token. Then call `POST http://localhost:8080/alerts/api/alerts` with JSON fields `hazard` (the supervisor's hazard), `channel` (`EMAIL` or `WHATSAPP`), and `message`; `recipient` is optional and defaults to the configured recipient. Only the matching supervisor or provincial administrator can queue an alert. The service records each attempt. Provider credentials are not included in the repository, so actual delivery requires valid provider settings.
+To create a manual alert, first sign in through `POST http://localhost:8080/auth/login` as a supervisor or provincial administrator and use the returned bearer token. Then call `POST http://localhost:8080/alerts/api/alerts` with JSON fields `hazard` (`FLOOD`, `DROUGHT`, `FIRE`, `ZOONOTIC`, or `MINING`), `channel` (`EMAIL` or `WHATSAPP`), and `message`; `recipient` is optional and defaults to the recipient configured in the environment. Supervisors may queue alerts within their hazard scope; Provincial Admin can queue for any hazard. The service records each attempt. Provider credentials and recipient details are intentionally omitted from the repository; actual delivery requires valid provider settings and a recipient.
 
 For WhatsApp delivery receipts, configure a public Meta webhook callback at `https://<your-domain>/alerts/api/webhooks/whatsapp`, subscribe to the `messages` webhook field, set `WHATSAPP_APP_SECRET` to the Meta app secret, and use the same locally chosen value for `WHATSAPP_WEBHOOK_VERIFY_TOKEN` in both this service and Meta's verification form. The receiver verifies `X-Hub-Signature-256` against the raw request body before changing alert status. Do not put either secret in Git or send it in chat.
 
@@ -196,6 +217,6 @@ The production stack definition is in `deploy/compose.yml`. It builds each Sprin
 5. Open `https://<your-domain>` and sign in with the bootstrap National account. Caddy obtains and renews a public TLS certificate when DNS points to the VPS and the HTTP/HTTPS ports are reachable. Use the National account to create individual recorders, supervisors, and provincial administrators through `POST /auth/users`; then remove the bootstrap password from `.env`. Update Meta's webhook callback URL to `https://<your-domain>/alerts/api/webhooks/whatsapp` and verify it with the matching token in `.env`.
 6. To inspect central logs, create an SSH tunnel with `ssh -L 3000:127.0.0.1:3000 <user>@<vps-address>`, then open `http://localhost:3000` and sign in as `admin` with `GRAFANA_ADMIN_PASSWORD` from `.env`.
 
-The current development computer has no Docker CLI, and no public domain/VPS has been supplied. The deployment files are prepared, but the Compose stack and public certificate cannot be launched or verified on the VPS until those are available. MySQL initialization scripts run automatically only when Compose creates a fresh database volume; back up existing data before replacing or removing any production volume.
+The full Compose stack has been built and started locally. Public HTTPS and the WhatsApp webhook still require a public domain and VPS; those cannot be verified on `localhost`. MySQL initialization scripts run automatically only when Compose creates a fresh database volume; back up existing data before replacing or removing any production volume.
 
 Never commit `.env`, database passwords, JWT secrets, email keys or WhatsApp tokens.

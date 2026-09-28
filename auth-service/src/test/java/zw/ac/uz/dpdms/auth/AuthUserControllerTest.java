@@ -25,7 +25,7 @@ class AuthUserControllerTest {
   @BeforeEach void setUp() {
     users = mock(UserRepository.class);
     encoder = mock(PasswordEncoder.class);
-    controller = new AuthUserController(users, encoder);
+    controller = new AuthUserController(users, encoder, false);
   }
 
   @Test void nationalCreatesHazardScopedRecorderWithHashedPassword() {
@@ -45,33 +45,22 @@ class AuthUserControllerTest {
     assertEquals("Ward 4", saved.getValue().ward);
   }
 
-  @Test void nationalCanCreateAllHazardRecorderWithWardScope() {
-    when(users.findByUsername("recorder.all@example.com")).thenReturn(Optional.empty());
-    when(encoder.encode("a-strong-password")).thenReturn("bcrypt-hash");
-
-    var response = controller.create(
-        new CreateUserRequest("Recorder.All@Example.com", "a-strong-password", "RECORDER", "ALL", "Ward 1", null), jwt("NATIONAL"));
-
-    assertEquals(HttpStatus.CREATED, response.getStatusCode());
-    var saved = org.mockito.ArgumentCaptor.forClass(AppUser.class);
-    verify(users).save(saved.capture());
-    assertEquals("ALL", saved.getValue().hazard);
-    assertEquals("Ward 1", saved.getValue().ward);
+  @Test void rejectsAllHazardRecorderAndSupervisorScopesByDefault() {
+    assertEquals(HttpStatus.BAD_REQUEST, assertThrows(ResponseStatusException.class,
+        () -> controller.create(new CreateUserRequest("recorder.all", "a-strong-password", "RECORDER", "ALL", "Ward 1", null), jwt("NATIONAL"))).getStatusCode());
+    assertEquals(HttpStatus.BAD_REQUEST, assertThrows(ResponseStatusException.class,
+        () -> controller.create(new CreateUserRequest("supervisor.all", "a-strong-password", "SUPERVISOR", "ALL", "", null), jwt("NATIONAL"))).getStatusCode());
   }
 
-  @Test void nationalCanCreateAllHazardSupervisorWithoutWardScope() {
+  @Test void allowsAllHazardScopesOnlyWhenDemoOverrideIsEnabled() {
+    controller = new AuthUserController(users, encoder, true);
     when(users.findByUsername("supervisor")).thenReturn(Optional.empty());
     when(encoder.encode("a-strong-password")).thenReturn("bcrypt-hash");
-
-    var response = controller.create(
-        new CreateUserRequest("Supervisor", "a-strong-password", "SUPERVISOR", "ALL", "", null), jwt("NATIONAL"));
-
+    var response = controller.create(new CreateUserRequest("supervisor", "a-strong-password", "SUPERVISOR", "ALL", "", null), jwt("NATIONAL"));
     assertEquals(HttpStatus.CREATED, response.getStatusCode());
     var saved = org.mockito.ArgumentCaptor.forClass(AppUser.class);
     verify(users).save(saved.capture());
-    assertEquals("supervisor", saved.getValue().username);
     assertEquals("ALL", saved.getValue().hazard);
-    assertEquals("", saved.getValue().ward);
   }
 
   @Test void nonNationalCannotCreateUsers() {

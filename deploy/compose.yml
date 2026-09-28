@@ -11,6 +11,7 @@ x-shared-app-env: &shared-app-env
   MYSQL_USER: dpdms_app
   MYSQL_PASSWORD: ${MYSQL_APP_PASSWORD:?Set MYSQL_APP_PASSWORD in .env}
   DPDMS_JWT_SECRET: ${DPDMS_JWT_SECRET:?Set DPDMS_JWT_SECRET in .env}
+  DPDMS_ALLOW_ALL_HAZARD_DEMO_SCOPES: ${DPDMS_ALLOW_ALL_HAZARD_DEMO_SCOPES:-false}
   EUREKA_URL: http://discovery-service:8761/eureka/
 
 services:

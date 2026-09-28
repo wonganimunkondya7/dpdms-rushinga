@@ -1,7 +1,7 @@
 spring: { application: { name: fire-service }, datasource: { url: '${FIRE_DB_URL:jdbc:mysql://localhost:3306/dpdms_fire}', username: '${MYSQL_USER:root}', password: '${MYSQL_PASSWORD:}' }, jpa: { hibernate: { ddl-auto: validate } }, sql: { init: { mode: always } } }
 server: { port: 8083 }
 eureka: { client: { service-url: { defaultZone: '${EUREKA_URL:http://localhost:8761/eureka/}' } } }
-dpdms: { hazard: { code: FIRE, required-indicators: [areaBurnedHectares, suspectedCause, casualties, structuresDestroyed, fireStatus] } }
+dpdms: { hazard: { code: FIRE, required-indicators: [areaBurnedHectares, suspectedCause, casualties, structuresDestroyed, fireStatus], allow-all-hazard-demo-scopes: '${DPDMS_ALLOW_ALL_HAZARD_DEMO_SCOPES:false}' } }
 management:
   endpoints:
     web:

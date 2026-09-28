@@ -1,7 +1,7 @@
 spring: { application: { name: zoonotic-disease-service }, datasource: { url: '${ZOONOTIC_DB_URL:jdbc:mysql://localhost:3306/dpdms_zoonotic}', username: '${MYSQL_USER:root}', password: '${MYSQL_PASSWORD:}' }, jpa: { hibernate: { ddl-auto: validate } }, sql: { init: { mode: always } } }
 server: { port: 8084 }
 eureka: { client: { service-url: { defaultZone: '${EUREKA_URL:http://localhost:8761/eureka/}' } } }
-dpdms: { hazard: { code: ZOONOTIC, required-indicators: [pathogenName, animalSpeciesAffected, confirmedHumanCases, confirmedAnimalCases, classification] } }
+dpdms: { hazard: { code: ZOONOTIC, required-indicators: [pathogenName, animalSpeciesAffected, confirmedHumanCases, confirmedAnimalCases, classification], allow-all-hazard-demo-scopes: '${DPDMS_ALLOW_ALL_HAZARD_DEMO_SCOPES:false}' } }
 management:
   endpoints:
     web:

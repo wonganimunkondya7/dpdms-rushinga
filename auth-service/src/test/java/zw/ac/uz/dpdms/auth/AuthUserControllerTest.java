@@ -34,7 +34,7 @@ class AuthUserControllerTest {
     Jwt national = jwt("NATIONAL");
 
     var response = controller.create(
-        new CreateUserRequest("Recorder@Example.com", "a-strong-password", "RECORDER", "FLOOD", "Ward 4"), national);
+        new CreateUserRequest("Recorder@Example.com", "a-strong-password", "RECORDER", "FLOOD", "Ward 4", null), national);
 
     assertEquals(HttpStatus.CREATED, response.getStatusCode());
     var saved = org.mockito.ArgumentCaptor.forClass(AppUser.class);
@@ -50,7 +50,7 @@ class AuthUserControllerTest {
     when(encoder.encode("a-strong-password")).thenReturn("bcrypt-hash");
 
     var response = controller.create(
-        new CreateUserRequest("Recorder.All@Example.com", "a-strong-password", "RECORDER", "ALL", "Ward 1"), jwt("NATIONAL"));
+        new CreateUserRequest("Recorder.All@Example.com", "a-strong-password", "RECORDER", "ALL", "Ward 1", null), jwt("NATIONAL"));
 
     assertEquals(HttpStatus.CREATED, response.getStatusCode());
     var saved = org.mockito.ArgumentCaptor.forClass(AppUser.class);
@@ -64,7 +64,7 @@ class AuthUserControllerTest {
     when(encoder.encode("a-strong-password")).thenReturn("bcrypt-hash");
 
     var response = controller.create(
-        new CreateUserRequest("Supervisor", "a-strong-password", "SUPERVISOR", "ALL", ""), jwt("NATIONAL"));
+        new CreateUserRequest("Supervisor", "a-strong-password", "SUPERVISOR", "ALL", "", null), jwt("NATIONAL"));
 
     assertEquals(HttpStatus.CREATED, response.getStatusCode());
     var saved = org.mockito.ArgumentCaptor.forClass(AppUser.class);
@@ -76,12 +76,12 @@ class AuthUserControllerTest {
 
   @Test void nonNationalCannotCreateUsers() {
     assertThrows(AccessDeniedException.class,
-        () -> controller.create(new CreateUserRequest("user", "a-strong-password", "RECORDER", "FLOOD", "Ward 1"), jwt("SUPERVISOR")));
+        () -> controller.create(new CreateUserRequest("user", "a-strong-password", "RECORDER", "FLOOD", "Ward 1", null), jwt("SUPERVISOR")));
   }
 
   @Test void rejectsInvalidHazardScope() {
     ResponseStatusException error = assertThrows(ResponseStatusException.class,
-        () -> controller.create(new CreateUserRequest("user", "a-strong-password", "SUPERVISOR", "OTHER", ""), jwt("NATIONAL")));
+        () -> controller.create(new CreateUserRequest("user", "a-strong-password", "SUPERVISOR", "OTHER", "", null), jwt("NATIONAL")));
     assertEquals(HttpStatus.BAD_REQUEST, error.getStatusCode());
   }
 

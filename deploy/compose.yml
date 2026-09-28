@@ -84,6 +84,9 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      network: host
+      entitlements:
+        - network.host
       args:
         APP_MODULE: discovery-service
     hostname: discovery-service
@@ -97,6 +100,9 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      network: host
+      entitlements:
+        - network.host
       args:
         APP_MODULE: auth-service
     hostname: auth-service
@@ -120,10 +126,15 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      network: host
+      entitlements:
+        - network.host
       args:
         APP_MODULE: alert-service
     hostname: alert-service
     restart: unless-stopped
+    dns:
+      - ${DPDMS_DNS_SERVER:-1.1.1.1}
     logging: *app-logging
     environment:
       <<: *shared-app-env
@@ -153,6 +164,9 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      network: host
+      entitlements:
+        - network.host
       args:
         APP_MODULE: report-service
     hostname: report-service
@@ -170,6 +184,9 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      network: host
+      entitlements:
+        - network.host
       args:
         APP_MODULE: flood-service
     hostname: flood-service
@@ -190,6 +207,9 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      network: host
+      entitlements:
+        - network.host
       args:
         APP_MODULE: drought-service
     hostname: drought-service
@@ -210,6 +230,9 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      network: host
+      entitlements:
+        - network.host
       args:
         APP_MODULE: fire-service
     hostname: fire-service
@@ -230,6 +253,9 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      network: host
+      entitlements:
+        - network.host
       args:
         APP_MODULE: zoonotic-disease-service
     hostname: zoonotic-disease-service
@@ -250,6 +276,9 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      network: host
+      entitlements:
+        - network.host
       args:
         APP_MODULE: mining-accident-service
     hostname: mining-accident-service
@@ -270,6 +299,9 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      network: host
+      entitlements:
+        - network.host
       args:
         APP_MODULE: api-gateway
     hostname: api-gateway
@@ -287,6 +319,9 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      network: host
+      entitlements:
+        - network.host
       args:
         APP_MODULE: dashboard-service
     hostname: dashboard-service

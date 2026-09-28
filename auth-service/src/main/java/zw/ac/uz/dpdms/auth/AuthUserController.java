@@ -9,6 +9,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -23,10 +24,13 @@ public class AuthUserController {
   private static final Set<String> ROLES = Set.of("NATIONAL", "PROVINCIAL_ADMIN", "SUPERVISOR", "RECORDER");
   private final UserRepository users;
   private final PasswordEncoder encoder;
+  private final boolean allowAllHazardDemoScopes;
 
-  public AuthUserController(UserRepository users, PasswordEncoder encoder) {
+  public AuthUserController(UserRepository users, PasswordEncoder encoder,
+      @Value("${DPDMS_ALLOW_ALL_HAZARD_DEMO_SCOPES:false}") boolean allowAllHazardDemoScopes) {
     this.users = users;
     this.encoder = encoder;
+    this.allowAllHazardDemoScopes = allowAllHazardDemoScopes;
   }
 
   @PostMapping
@@ -48,6 +52,7 @@ public class AuthUserController {
       if (!ward.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Provincial administrators cannot have a ward scope");
     } else {
       boolean allHazardRole = ("RECORDER".equals(role) || "SUPERVISOR".equals(role)) && "ALL".equals(hazard);
+      if (allHazardRole && !allowAllHazardDemoScopes) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Recorder and supervisor accounts must be scoped to one hazard");
       if (!allHazardRole && !HAZARDS.contains(hazard)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A valid hazard scope is required");
       if ("RECORDER".equals(role) && ward.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Recorder accounts require a ward");
       if (!"RECORDER".equals(role) && !ward.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only recorders may have a ward scope");

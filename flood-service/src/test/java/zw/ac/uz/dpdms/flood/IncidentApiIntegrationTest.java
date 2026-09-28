@@ -98,12 +98,20 @@ class IncidentApiIntegrationTest {
         .andExpect(status().isForbidden());
   }
 
-  @Test void allHazardSupervisorCanApproveFloodIncident() throws Exception {
+  @Test void hazardScopedSupervisorCanApproveFloodIncident() throws Exception {
     long id = createPendingIncident("Rushinga Ward 1");
     api.perform(post("/api/incidents/{id}/transition", id)
-        .header("Authorization", token("SUPERVISOR", "ALL", "", "supervisor"))
+        .header("Authorization", token("SUPERVISOR", "FLOOD", "", "flood.supervisor"))
         .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"APPROVED\",\"reason\":\"Verified\"}"))
         .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("APPROVED"));
+  }
+
+  @Test void supervisorForAnotherHazardCannotApproveFloodIncident() throws Exception {
+    long id = createPendingIncident("Rushinga Ward 1");
+    api.perform(post("/api/incidents/{id}/transition", id)
+        .header("Authorization", token("SUPERVISOR", "DROUGHT", "", "drought.supervisor"))
+        .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"APPROVED\",\"reason\":\"Verified\"}"))
+        .andExpect(status().isForbidden());
   }
 
   @Test void recorderCanDeleteOwnUnapprovedIncidentAndDeletionIsAudited() throws Exception {
